@@ -479,13 +479,15 @@ HTML_LOGIN = """
     <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700&display=swap" rel="stylesheet">
     <style>
         :root {
-            --bg-color: #040814;
-            --card-bg: rgba(10, 25, 50, 0.35);
-            --border-color: rgba(30, 144, 255, 0.15);
-            --primary: #1e90ff;
-            --primary-hover: #00bfff;
-            --text-main: #f0f4f8;
-            --text-muted: #8fa0b5;
+            --bg-color: #0a0a12;
+            --card-bg: rgba(18, 14, 30, 0.5);
+            --border-color: rgba(139, 92, 246, 0.15);
+            --primary: #8b5cf6;
+            --primary-hover: #a78bfa;
+            --accent: #10b981;
+            --accent-hover: #34d399;
+            --text-main: #e8e4f0;
+            --text-muted: #9a8fae;
         }
         body {
             font-family: 'Plus Jakarta Sans', sans-serif;
@@ -497,8 +499,8 @@ HTML_LOGIN = """
             min-height: 100vh;
             margin: 0;
             background-image: 
-                radial-gradient(at 0% 0%, rgba(30, 144, 255, 0.25) 0px, transparent 50%),
-                radial-gradient(at 100% 100%, rgba(138, 43, 226, 0.12) 0px, transparent 50%);
+                radial-gradient(at 0% 0%, rgba(139, 92, 246, 0.2) 0px, transparent 50%),
+                radial-gradient(at 100% 100%, rgba(16, 185, 129, 0.1) 0px, transparent 50%);
             overflow-x: hidden;
         }
         .container {
@@ -517,19 +519,19 @@ HTML_LOGIN = """
             backdrop-filter: blur(24px);
             border-radius: 28px;
             padding: 40px;
-            box-shadow: 0 25px 50px -12px rgba(0, 191, 255, 0.15);
+            box-shadow: 0 25px 50px -12px rgba(139, 92, 246, 0.15);
             transition: all 0.3s;
         }
         .card:hover {
-            border-color: rgba(0, 191, 255, 0.3);
-            box-shadow: 0 25px 60px -10px rgba(0, 191, 255, 0.25);
+            border-color: rgba(139, 92, 246, 0.35);
+            box-shadow: 0 25px 60px -10px rgba(139, 92, 246, 0.25);
         }
         h2 {
             margin-top: 0;
             font-weight: 800;
             font-size: 30px;
             letter-spacing: -0.8px;
-            background: linear-gradient(to right, #00bfff, #1e90ff);
+            background: linear-gradient(135deg, #a78bfa, #10b981);
             -webkit-background-clip: text;
             -webkit-text-fill-color: transparent;
             text-align: center;
@@ -544,11 +546,11 @@ HTML_LOGIN = """
         .section-title {
             font-size: 11px;
             font-weight: 700;
-            color: #00bfff;
+            color: var(--accent);
             text-transform: uppercase;
             letter-spacing: 1.5px;
             margin: 25px 0 15px 0;
-            border-bottom: 1px solid rgba(0, 191, 255, 0.2);
+            border-bottom: 1px solid rgba(16, 185, 129, 0.2);
             padding-bottom: 6px;
         }
         .form-group {
@@ -577,7 +579,7 @@ HTML_LOGIN = """
         input:focus, select:focus {
             outline: none;
             border-color: var(--primary-hover);
-            box-shadow: 0 0 0 4px rgba(0, 191, 255, 0.18);
+            box-shadow: 0 0 0 4px rgba(139, 92, 246, 0.18);
             background: rgba(255, 255, 255, 0.05);
             transform: scale(1.01);
         }
@@ -591,7 +593,7 @@ HTML_LOGIN = """
         .btn {
             width: 100%;
             padding: 16px;
-            background: linear-gradient(135deg, var(--primary), #4b0082);
+            background: linear-gradient(135deg, var(--primary), var(--accent));
             border: none;
             border-radius: 14px;
             color: white;
@@ -599,13 +601,13 @@ HTML_LOGIN = """
             font-weight: 700;
             cursor: pointer;
             transition: all 0.3s ease;
-            box-shadow: 0 8px 24px rgba(30, 144, 255, 0.25);
+            box-shadow: 0 8px 24px rgba(139, 92, 246, 0.25);
             margin-top: 20px;
         }
         .btn:hover {
             transform: translateY(-2px);
-            box-shadow: 0 12px 30px rgba(0, 191, 255, 0.4);
-            background: linear-gradient(135deg, var(--primary-hover), #4b0082);
+            box-shadow: 0 12px 30px rgba(139, 92, 246, 0.4);
+            background: linear-gradient(135deg, var(--primary-hover), var(--accent-hover));
         }
         .btn:active {
             transform: translateY(1px);
@@ -765,7 +767,7 @@ HTML_LOGIN = """
                                 <option value="" disabled selected>Introduce credenciales y pulsa Cargar ➔</option>
                             {% endif %}
                         </select>
-                        <button type="button" onclick="loadDatabases()" id="btn-load-dbs" style="padding: 14px 18px; background: rgba(30, 144, 255, 0.15); border: 1px solid var(--border-color); border-radius: 14px; color: #00bfff; cursor: pointer; font-size: 13px; font-weight: bold; transition: all 0.2s;">
+                        <button type="button" onclick="loadDatabases()" id="btn-load-dbs" style="padding: 14px 18px; background: rgba(139, 92, 246, 0.15); border: 1px solid var(--border-color); border-radius: 14px; color: var(--accent); cursor: pointer; font-size: 13px; font-weight: bold; transition: all 0.2s;">
                             🔄 Cargar
                         </button>
                     </div>
@@ -791,15 +793,17 @@ HTML_CHAT = """
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <style>
         :root {
-            --bg-color: #040812;
-            --sidebar-bg: rgba(8, 20, 42, 0.7);
-            --chat-bg: #040812;
-            --card-bg: rgba(10, 25, 45, 0.35);
-            --border-color: rgba(30, 144, 255, 0.15);
-            --primary: #1e90ff;
-            --primary-hover: #00bfff;
-            --text-main: #f0f4f8;
-            --text-muted: #8fa0b5;
+            --bg-color: #0a0a12;
+            --sidebar-bg: rgba(14, 10, 26, 0.75);
+            --chat-bg: #0a0a12;
+            --card-bg: rgba(18, 14, 30, 0.5);
+            --border-color: rgba(139, 92, 246, 0.15);
+            --primary: #8b5cf6;
+            --primary-hover: #a78bfa;
+            --accent: #10b981;
+            --accent-hover: #34d399;
+            --text-main: #e8e4f0;
+            --text-muted: #9a8fae;
         }
         body {
             font-family: 'Plus Jakarta Sans', sans-serif;
@@ -820,9 +824,9 @@ HTML_CHAT = """
             background-image: 
                 radial-gradient(1px 1px at 20px 30px, #fff, rgba(0,0,0,0)),
                 radial-gradient(1px 1px at 75px 120px, #fff, rgba(0,0,0,0)),
-                radial-gradient(1.5px 1.5px at 150px 80px, #00bfff, rgba(0,0,0,0)),
+                radial-gradient(1.5px 1.5px at 150px 80px, #a78bfa, rgba(0,0,0,0)),
                 radial-gradient(1px 1px at 280px 240px, #fff, rgba(0,0,0,0)),
-                radial-gradient(2px 2px at 310px 45px, #8a2be2, rgba(0,0,0,0));
+                radial-gradient(2px 2px at 310px 45px, #10b981, rgba(0,0,0,0));
             background-repeat: repeat;
             background-size: 400px 400px;
             opacity: 0.12;
@@ -876,52 +880,51 @@ HTML_CHAT = """
             margin-left: -320px;
         }
         
-        /* Icono Hamburguesa Animado → X */
+        /* Botón Toggle con Icono de Base de Datos */
         .sidebar-toggle-btn {
-            width: 38px;
-            height: 38px;
+            width: 40px;
+            height: 40px;
             position: relative;
             cursor: pointer;
             border-radius: 12px;
-            background: rgba(30, 144, 255, 0.1);
-            border: 1px solid rgba(30, 144, 255, 0.3);
+            background: rgba(139, 92, 246, 0.1);
+            border: 1px solid rgba(139, 92, 246, 0.3);
             display: flex;
             align-items: center;
             justify-content: center;
-            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+            transition: all 0.35s cubic-bezier(0.4, 0, 0.2, 1);
             flex-shrink: 0;
         }
         .sidebar-toggle-btn:hover {
-            background: rgba(30, 144, 255, 0.25);
+            background: rgba(139, 92, 246, 0.25);
             transform: translateY(-1px);
+            box-shadow: 0 4px 16px rgba(139, 92, 246, 0.3);
         }
-        .hamburger-icon {
-            width: 18px;
-            height: 14px;
-            position: relative;
-            display: flex;
-            flex-direction: column;
-            justify-content: space-between;
+        .sidebar-toggle-btn .db-toggle-icon {
+            width: 20px;
+            height: 20px;
+            fill: var(--accent);
+            transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+            filter: drop-shadow(0 0 4px rgba(16, 185, 129, 0.4));
         }
-        .hamburger-icon span {
-            display: block;
-            height: 2px;
-            width: 100%;
-            background: #00bfff;
-            border-radius: 2px;
-            transition: all 0.35s cubic-bezier(0.68, -0.55, 0.27, 1.55);
-            transform-origin: center;
+        /* Cuando el sidebar está abierto: el icono brilla y pulsa suavemente */
+        .sidebar-toggle-btn.is-open .db-toggle-icon {
+            fill: var(--accent-hover);
+            filter: drop-shadow(0 0 8px rgba(52, 211, 153, 0.6));
+            animation: dbPulse 2s ease-in-out infinite;
         }
-        /* Estado abierto → las 3 líneas se transforman en una X */
-        .sidebar-toggle-btn.is-active .hamburger-icon span:nth-child(1) {
-            transform: translateY(6px) rotate(45deg);
+        .sidebar-toggle-btn.is-open {
+            background: rgba(16, 185, 129, 0.12);
+            border-color: rgba(16, 185, 129, 0.35);
         }
-        .sidebar-toggle-btn.is-active .hamburger-icon span:nth-child(2) {
-            opacity: 0;
-            transform: scaleX(0);
+        @keyframes dbPulse {
+            0%, 100% { transform: scale(1); }
+            50% { transform: scale(1.1); }
         }
-        .sidebar-toggle-btn.is-active .hamburger-icon span:nth-child(3) {
-            transform: translateY(-6px) rotate(-45deg);
+        /* Cuando el sidebar está cerrado: el icono se atenúa */
+        .sidebar-toggle-btn:not(.is-open) .db-toggle-icon {
+            fill: var(--text-muted);
+            filter: none;
         }
         .sidebar-header {
             padding: 20px 18px;
@@ -933,11 +936,11 @@ HTML_CHAT = """
             font-weight: 800;
             text-transform: uppercase;
             letter-spacing: 1.5px;
-            color: #00bfff;
+            color: var(--accent);
             display: flex;
             align-items: center;
             gap: 8px;
-            text-shadow: 0 0 10px rgba(0, 191, 255, 0.3);
+            text-shadow: 0 0 10px rgba(16, 185, 129, 0.3);
         }
         
         .sidebar-scroll-panel {
@@ -956,11 +959,11 @@ HTML_CHAT = """
             background: rgba(0,0,0,0.1);
         }
         ::-webkit-scrollbar-thumb {
-            background: rgba(30, 144, 255, 0.2);
+            background: rgba(139, 92, 246, 0.2);
             border-radius: 4px;
         }
         ::-webkit-scrollbar-thumb:hover {
-            background: rgba(0, 191, 255, 0.55);
+            background: rgba(167, 139, 250, 0.55);
         }
         
         .db-tree-container {
@@ -978,7 +981,7 @@ HTML_CHAT = """
         .db-node svg {
             width: 16px;
             height: 16px;
-            fill: #00bfff;
+            fill: var(--accent);
         }
         .table-node {
             margin-left: 10px;
@@ -997,8 +1000,8 @@ HTML_CHAT = """
             user-select: none;
         }
         .table-header-node:hover {
-            background: rgba(30, 144, 255, 0.08);
-            color: #00bfff;
+            background: rgba(139, 92, 246, 0.08);
+            color: var(--primary-hover);
         }
         .table-name-wrapper {
             display: flex;
@@ -1008,7 +1011,7 @@ HTML_CHAT = """
         .table-header-node svg.table-icon {
             width: 14px;
             height: 14px;
-            fill: currentColor;
+            fill: var(--primary);
         }
         .table-header-node svg.caret-icon {
             width: 10px;
@@ -1020,13 +1023,13 @@ HTML_CHAT = """
         .preview-btn {
             opacity: 0;
             transition: all 0.2s ease;
-            color: #00ffcc;
+            color: var(--accent);
             font-size: 10px;
             font-weight: bold;
             padding: 2px 6px;
             border-radius: 6px;
-            background: rgba(0, 255, 204, 0.1);
-            border: 1px solid rgba(0, 255, 204, 0.25);
+            background: rgba(16, 185, 129, 0.1);
+            border: 1px solid rgba(16, 185, 129, 0.25);
             text-transform: uppercase;
             letter-spacing: 0.5px;
         }
@@ -1035,8 +1038,8 @@ HTML_CHAT = """
         }
         .preview-btn:hover {
             transform: scale(1.1);
-            background: rgba(0, 255, 204, 0.2);
-            box-shadow: 0 0 8px rgba(0, 255, 204, 0.4);
+            background: rgba(16, 185, 129, 0.2);
+            box-shadow: 0 0 8px rgba(16, 185, 129, 0.4);
         }
         
         /* Lista de Columnas con Animación de Altura */
@@ -1047,7 +1050,7 @@ HTML_CHAT = """
             transition: max-height 0.4s cubic-bezier(0.16, 1, 0.3, 1), opacity 0.3s ease;
             opacity: 0;
             padding-left: 10px;
-            border-left: 1px dashed rgba(30, 144, 255, 0.2);
+            border-left: 1px dashed rgba(139, 92, 246, 0.2);
             margin-top: 4px;
             margin-bottom: 4px;
         }
@@ -1070,8 +1073,8 @@ HTML_CHAT = """
             margin-bottom: 2px;
         }
         .column-node:hover {
-            background: rgba(30, 144, 255, 0.08);
-            color: #00bfff;
+            background: rgba(139, 92, 246, 0.08);
+            color: var(--primary-hover);
             padding-left: 12px;
         }
         .column-info {
@@ -1088,9 +1091,9 @@ HTML_CHAT = """
         .attr-preview-btn {
             opacity: 0;
             font-size: 9px;
-            color: #1e90ff;
-            background: rgba(30, 144, 255, 0.1);
-            border: 1px solid rgba(30, 144, 255, 0.2);
+            color: var(--primary);
+            background: rgba(139, 92, 246, 0.1);
+            border: 1px solid rgba(139, 92, 246, 0.2);
             padding: 1px 4px;
             border-radius: 4px;
             transition: opacity 0.2s, background 0.2s;
@@ -1099,8 +1102,8 @@ HTML_CHAT = """
             opacity: 1;
         }
         .attr-preview-btn:hover {
-            background: rgba(30, 144, 255, 0.25);
-            color: #00bfff;
+            background: rgba(139, 92, 246, 0.25);
+            color: var(--primary-hover);
         }
         
         /* 2. Sección de Chat */
@@ -1119,7 +1122,7 @@ HTML_CHAT = """
             justify-content: space-between;
             align-items: center;
             padding: 16px 32px;
-            background: rgba(4, 8, 18, 0.4);
+            background: rgba(10, 10, 18, 0.5);
             backdrop-filter: blur(16px);
             border-bottom: 1px solid var(--border-color);
             box-shadow: 0 4px 30px rgba(0, 0, 0, 0.2);
@@ -1130,7 +1133,7 @@ HTML_CHAT = """
             font-size: 20px;
             font-weight: 800;
             letter-spacing: -0.6px;
-            background: linear-gradient(to right, #00bfff, #1e90ff);
+            background: linear-gradient(135deg, #a78bfa, #34d399);
             -webkit-background-clip: text;
             -webkit-text-fill-color: transparent;
         }
@@ -1140,9 +1143,9 @@ HTML_CHAT = """
             align-items: center;
         }
         .db-badge {
-            background: rgba(30, 144, 255, 0.1);
-            border: 1px solid rgba(30, 144, 255, 0.25);
-            color: #00bfff;
+            background: rgba(16, 185, 129, 0.1);
+            border: 1px solid rgba(16, 185, 129, 0.25);
+            color: var(--accent);
             padding: 6px 12px;
             border-radius: 20px;
             font-size: 12px;
@@ -1152,9 +1155,9 @@ HTML_CHAT = """
             gap: 6px;
         }
         .model-badge {
-            background: rgba(138, 43, 226, 0.1);
-            border: 1px solid rgba(138, 43, 226, 0.25);
-            color: #bf80ff;
+            background: rgba(139, 92, 246, 0.1);
+            border: 1px solid rgba(139, 92, 246, 0.25);
+            color: var(--primary-hover);
             padding: 6px 12px;
             border-radius: 20px;
             font-size: 12px;
@@ -1181,12 +1184,12 @@ HTML_CHAT = """
             box-sizing: border-box;
         }
         .btn-modify {
-            background: rgba(30, 144, 255, 0.1);
-            border: 1px solid rgba(30, 144, 255, 0.3);
-            color: #00bfff;
+            background: rgba(139, 92, 246, 0.1);
+            border: 1px solid rgba(139, 92, 246, 0.3);
+            color: var(--primary-hover);
         }
         .btn-modify:hover {
-            background: rgba(30, 144, 255, 0.25);
+            background: rgba(139, 92, 246, 0.25);
             transform: translateY(-1px);
         }
         .btn-disconnect {
@@ -1237,7 +1240,7 @@ HTML_CHAT = """
             box-shadow: 0 4px 15px rgba(0, 0, 0, 0.1);
         }
         .message.user .bubble {
-            background: linear-gradient(135deg, var(--primary), #4b0082);
+            background: linear-gradient(135deg, var(--primary), #1e1b4b);
             color: white;
             border-bottom-right-radius: 4px;
         }
@@ -1254,7 +1257,7 @@ HTML_CHAT = """
         .bubble ul, .bubble ol { margin: 8px 0; padding-left: 20px; }
         .bubble table { border-collapse: collapse; width: 100%; margin: 12px 0; font-size: 13.5px; }
         .bubble table th, .bubble table td { border: 1px solid var(--border-color); padding: 8px 12px; text-align: left; }
-        .bubble table th { background: rgba(30, 144, 255, 0.1); }
+        .bubble table th { background: rgba(139, 92, 246, 0.1); }
         
         /* Botones de acción del query */
         .query-actions {
@@ -1263,9 +1266,9 @@ HTML_CHAT = """
             margin-top: 12px;
         }
         .action-tab-btn {
-            background: rgba(30, 144, 255, 0.08);
+            background: rgba(139, 92, 246, 0.08);
             border: 1px solid var(--border-color);
-            color: #00bfff;
+            color: var(--primary-hover);
             padding: 8px 14px;
             font-size: 12.5px;
             font-weight: 600;
@@ -1277,14 +1280,14 @@ HTML_CHAT = """
             transition: all 0.3s ease;
         }
         .action-tab-btn:hover {
-            background: rgba(30, 144, 255, 0.18);
-            border-color: rgba(30, 144, 255, 0.3);
+            background: rgba(139, 92, 246, 0.18);
+            border-color: rgba(139, 92, 246, 0.3);
             transform: translateY(-1px);
         }
         .action-tab-btn.active {
-            background: rgba(0, 255, 204, 0.1);
-            border-color: rgba(0, 255, 204, 0.3);
-            color: #00ffcc;
+            background: rgba(16, 185, 129, 0.1);
+            border-color: rgba(16, 185, 129, 0.3);
+            color: var(--accent);
         }
         
         /* Panel del Query y la Tabla de Datos con Animaciones de Apertura y Cierre */
@@ -1307,13 +1310,13 @@ HTML_CHAT = """
         }
         .query-body {
             padding: 14px 18px;
-            background: #030710;
+            background: #08060f;
         }
         .query-body pre {
             margin: 0;
             font-family: 'Courier New', Courier, monospace;
             font-size: 13.5px;
-            color: #00ffcc;
+            color: var(--accent);
             overflow-x: auto;
             white-space: pre-wrap;
             line-height: 1.5;
@@ -1333,11 +1336,11 @@ HTML_CHAT = """
             text-align: left;
         }
         table.db-data-table th {
-            background: rgba(30, 144, 255, 0.15);
-            color: #00bfff;
+            background: rgba(139, 92, 246, 0.15);
+            color: var(--primary-hover);
             padding: 10px 12px;
             font-weight: 700;
-            border-bottom: 1px solid rgba(30, 144, 255, 0.25);
+            border-bottom: 1px solid rgba(139, 92, 246, 0.25);
             position: sticky;
             top: 0;
         }
@@ -1364,20 +1367,20 @@ HTML_CHAT = """
             z-index: 10;
         }
         .input-wrapper {
-            background: rgba(8, 20, 42, 0.75);
+            background: rgba(14, 10, 26, 0.8);
             backdrop-filter: blur(24px);
-            border: 1px solid rgba(30, 144, 255, 0.25);
+            border: 1px solid rgba(139, 92, 246, 0.25);
             border-radius: 24px;
             padding: 8px 12px;
-            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5), 0 0 15px rgba(30, 144, 255, 0.15);
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5), 0 0 15px rgba(139, 92, 246, 0.15);
             display: flex;
             gap: 12px;
             align-items: center;
             transition: all 0.35s cubic-bezier(0.4, 0, 0.2, 1);
         }
         .input-wrapper:focus-within {
-            border-color: #00bfff;
-            box-shadow: 0 12px 35px rgba(0, 0, 0, 0.6), 0 0 25px rgba(0, 191, 255, 0.3);
+            border-color: var(--primary-hover);
+            box-shadow: 0 12px 35px rgba(0, 0, 0, 0.6), 0 0 25px rgba(139, 92, 246, 0.3);
             transform: translateY(-2px);
         }
         textarea {
@@ -1396,7 +1399,7 @@ HTML_CHAT = """
             box-shadow: none !important;
         }
         .send-btn {
-            background: linear-gradient(135deg, var(--primary), #4b0082);
+            background: linear-gradient(135deg, var(--primary), var(--accent));
             color: white;
             border: none;
             border-radius: 18px;
@@ -1407,13 +1410,13 @@ HTML_CHAT = """
             align-items: center;
             cursor: pointer;
             transition: all 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
-            box-shadow: 0 6px 15px rgba(30, 144, 255, 0.3);
+            box-shadow: 0 6px 15px rgba(139, 92, 246, 0.3);
             flex-shrink: 0;
         }
         .send-btn:hover {
             transform: scale(1.08) rotate(5deg);
-            box-shadow: 0 8px 22px rgba(0, 191, 255, 0.5);
-            background: linear-gradient(135deg, var(--primary-hover), #4b0082);
+            box-shadow: 0 8px 22px rgba(139, 92, 246, 0.5);
+            background: linear-gradient(135deg, var(--primary-hover), var(--accent-hover));
         }
         .send-btn:active {
             transform: scale(0.95);
@@ -1438,7 +1441,7 @@ HTML_CHAT = """
         .dot {
             width: 8px;
             height: 8px;
-            background: #00bfff;
+            background: var(--primary-hover);
             border-radius: 50%;
             animation: bounce 1.4s infinite ease-in-out both;
         }
@@ -1465,7 +1468,7 @@ HTML_CHAT = """
                         <svg viewBox="0 0 24 24">
                             <path d="M12 2C6.5 2 2 4.2 2 7s4.5 5 10 5 10-2.2 10-5-4.5-5-10-5zm0 16c-5.5 0-10-1.8-10-4v-2c0 2.2 4.5 4 10 4s10-1.8 10-4v2c0 2.2-4.5 4-10 4zm0 4c-5.5 0-10-1.8-10-4v-2c0 2.2 4.5 4 10 4s10-1.8 10-4v2c0 2.2-4.5 4-10 4z"/>
                         </svg>
-                        Database: <span style="color: #00bfff;">{{ db_name }}</span>
+                        Database: <span style="color: var(--accent);">{{ db_name }}</span>
                     </div>
                     
                     <!-- Hijos: Tablas -->
@@ -1507,13 +1510,11 @@ HTML_CHAT = """
         <main class="main-chat-area">
             <header>
                 <div style="display: flex; align-items: center; gap: 16px;">
-                    <!-- Botón Retráctil del Menú Izquierdo con Animación Hamburger → X -->
-                    <button onclick="toggleSidebar()" class="sidebar-toggle-btn" id="sidebar-toggle" title="Mostrar/Ocultar SQL Manager">
-                        <div class="hamburger-icon">
-                            <span></span>
-                            <span></span>
-                            <span></span>
-                        </div>
+                    <!-- Botón Retráctil con Icono de Base de Datos -->
+                    <button onclick="toggleSidebar()" class="sidebar-toggle-btn is-open" id="sidebar-toggle" title="Mostrar/Ocultar SQL Manager">
+                        <svg class="db-toggle-icon" viewBox="0 0 24 24">
+                            <path d="M12 2C6.5 2 2 4.2 2 7s4.5 5 10 5 10-2.2 10-5-4.5-5-10-5zm0 16c-5.5 0-10-1.8-10-4v-2c0 2.2 4.5 4 10 4s10-1.8 10-4v2c0 2.2-4.5 4-10 4zm0 4c-5.5 0-10-1.8-10-4v-2c0 2.2 4.5 4 10 4s10-1.8 10-4v2c0 2.2-4.5 4-10 4z"/>
+                        </svg>
                     </button>
                     <h1>MCP Relational AI</h1>
                     <div class="badges-wrapper">
@@ -1572,12 +1573,12 @@ HTML_CHAT = """
 
         let userExplicitlyRequestedChart = false;
 
-        // Toggle del Menú Izquierdo Retráctil con Animación de Icono
+        // Toggle del Menú Izquierdo Retráctil con Icono de Base de Datos
         function toggleSidebar() {
             const sidebar = document.querySelector('.sidebar');
             const toggleBtn = document.getElementById('sidebar-toggle');
             sidebar.classList.toggle('collapsed');
-            toggleBtn.classList.toggle('is-active');
+            toggleBtn.classList.toggle('is-open');
         }
 
         // Control del Panel del Árbol SQL con transiciones de CSS
@@ -1588,7 +1589,7 @@ HTML_CHAT = """
             list.classList.toggle('open');
             if (list.classList.contains('open')) {
                 caret.style.transform = 'rotate(90deg)';
-                caret.style.fill = '#00bfff';
+                caret.style.fill = '#a78bfa';
             } else {
                 caret.style.transform = 'rotate(0deg)';
                 caret.style.fill = '#8fa0b5';
@@ -1693,9 +1694,9 @@ HTML_CHAT = """
             
             // Crear gradiente azul translúcido profesional para el relleno de línea
             const gradient = ctx.createLinearGradient(0, 0, 0, 300);
-            gradient.addColorStop(0, 'rgba(0, 191, 255, 0.4)');
-            gradient.addColorStop(0.5, 'rgba(0, 191, 255, 0.15)');
-            gradient.addColorStop(1, 'rgba(0, 191, 255, 0.0)');
+            gradient.addColorStop(0, 'rgba(139, 92, 246, 0.4)');
+            gradient.addColorStop(0.5, 'rgba(139, 92, 246, 0.15)');
+            gradient.addColorStop(1, 'rgba(139, 92, 246, 0.0)');
             
             if (canvas.chartInstance) {
                 canvas.chartInstance.destroy();
@@ -1708,13 +1709,13 @@ HTML_CHAT = """
                     datasets: [{
                         label: valueKey,
                         data: dataPoints,
-                        borderColor: '#00bfff',
+                        borderColor: '#a78bfa',
                         backgroundColor: gradient,
                         borderWidth: 3,
                         fill: true,
                         tension: 0.35, // Suavizado bezier
-                        pointBackgroundColor: '#00ffcc',
-                        pointBorderColor: '#040812',
+                        pointBackgroundColor: '#34d399',
+                        pointBorderColor: '#0a0a12',
                         pointBorderWidth: 2,
                         pointRadius: 5,
                         pointHoverRadius: 8
@@ -1814,7 +1815,7 @@ HTML_CHAT = """
                     <div class="query-container chart-panel open" style="max-height: 580px; opacity: 1; margin-top: 10px;">
                         <div class="query-body" style="background:#030710; padding:0; position:relative; min-height: 380px;">
                             <div style="padding: 10px 16px; display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid var(--border-color); background: rgba(30,144,255,0.08);">
-                                <label style="margin:0; font-size:12px; text-transform:none; font-weight:700; color:#00bfff;">📊 Visualización Gráfica Profesional</label>
+                                <label style="margin:0; font-size:12px; text-transform:none; font-weight:700; color:var(--accent);">📊 Visualización Gráfica Profesional</label>
                                 <div style="display: flex; gap: 8px; align-items: center;">
                                     <label style="margin:0; font-size:11px; text-transform:none; font-weight:bold; color:var(--text-muted);">Tipo:</label>
                                     <select onchange="updateChartType(this)" style="padding: 4px 8px; font-size: 11px; width: auto; height: auto; border-radius: 6px; background:#040812; border:1px solid var(--border-color); color:var(--text-main); outline:none; cursor:pointer;">
@@ -1841,7 +1842,7 @@ HTML_CHAT = """
                         📊 Ver Tabla
                     </button>
                     ${chartButton}
-                    <button class="action-tab-btn" onclick="exportToCSV(this)" style="color: #00ffcc; border-color: rgba(0, 255, 204, 0.25); background: rgba(0, 255, 204, 0.05);">
+                    <button class="action-tab-btn" onclick="exportToCSV(this)" style="color: var(--accent); border-color: rgba(16, 185, 129, 0.25); background: rgba(16, 185, 129, 0.05);">
                         📥 Exportar a Excel
                     </button>
                 </div>
