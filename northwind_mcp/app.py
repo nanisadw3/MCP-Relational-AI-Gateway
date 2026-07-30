@@ -25,7 +25,6 @@ def db_serialize(val):
     if isinstance(val, decimal.Decimal):
         return float(val)
     if isinstance(val, (bytes, bytearray)):
-        # Gestión especial para el OLE header de Microsoft Access en Northwind (78 bytes iniciales)
         try:
             if len(val) > 78 and val[0:2] == b'\x15\x1c':
                 img_data = val[78:]
@@ -131,7 +130,6 @@ def execute_sql(config, sql):
 
 @app.route("/", methods=["GET", "POST"])
 def index():
-    # Cargar valores previos de la sesión para rellenar el formulario si se está modificando
     saved_data = session.get("db_config", {})
     saved_api = session.get("api_key", "")
     saved_model = session.get("gemini_model", "auto")
@@ -160,17 +158,14 @@ def index():
         api_key = request.form.get("api_key")
         gemini_model = request.form.get("gemini_model")
         
-        # Combinar para volver a pintar si hay error
         form_submitted = {**config, "api_key": api_key, "gemini_model": gemini_model}
         
         if not api_key:
             return render_template_string(HTML_LOGIN, error="La clave API de Google Gemini es obligatoria.", form_data=form_submitted)
             
         try:
-            # Obtener el esquema estructurado
             schema_dict = fetch_schema(config)
             
-            # Formatear el esquema en texto plano para el prompt de Gemini
             schema_text = ""
             for table, cols in schema_dict.items():
                 col_strs = [f"{c['name']} ({c['type']})" for c in cols]
@@ -178,7 +173,7 @@ def index():
                 
             session["db_config"] = config
             session["db_schema"] = schema_text
-            session["db_schema_dict"] = schema_dict  # Guardar esquema estructurado para el panel izquierdo
+            session["db_schema_dict"] = schema_dict
             session["api_key"] = api_key
             session["gemini_model"] = gemini_model
             session["chat_history"] = []
@@ -193,7 +188,7 @@ def chat():
     if "db_config" not in session:
         return redirect(url_for("index"))
     
-    display_model = "Auto Fallback (Inteligente)" if session["gemini_model"] == "auto" else session["gemini_model"]
+    display_model = "Auto Fallback" if session["gemini_model"] == "auto" else session["gemini_model"]
     return render_template_string(
         HTML_CHAT, 
         db_name=session["db_config"]["database"], 
@@ -226,7 +221,6 @@ def fetch_databases():
     user = data.get("user")
     password = data.get("password")
     
-    # Conectar a una base de datos por defecto para listar las demás
     default_db = "master" if db_type == "mssql" else "postgres"
     
     temp_config = {
@@ -262,7 +256,6 @@ def fetch_databases():
             db_names.append(val)
             
         db_names.append(default_db)
-        # Quitar duplicados preservando orden
         db_names = list(dict.fromkeys(db_names))
         
         return jsonify({"status": "success", "databases": db_names})
@@ -284,13 +277,11 @@ async def send_message():
     model_selection = session.get("gemini_model", "auto")
     chat_history = session.get("chat_history", [])
     
-    # 1. Agregar pregunta del usuario al historial
     chat_history.append({
         "role": "user",
         "parts": [{"text": user_message}]
     })
     
-    # Configurar herramientas del sistema
     tools_config = [
         {
             "functionDeclarations": [
@@ -312,7 +303,6 @@ async def send_message():
         }
     ]
     
-    # Instrucciones del sistema para el dialecto correcto
     engine_name = "Microsoft SQL Server (T-SQL)" if db_config["db_type"] == "mssql" else "PostgreSQL"
     dialect_rules = (
         "La base de datos es SQL Server. Usa sintaxis T-SQL válida. Por ejemplo, usa 'SELECT TOP N' en lugar de 'LIMIT N', y pon corchetes a tablas con espacios como [Order Details]."
@@ -342,7 +332,6 @@ async def send_message():
         "systemInstruction": system_instruction
     }
     
-    # Definir la lista de modelos a intentar
     models_to_try = AUTOMATIC_MODELS if model_selection == "auto" else [model_selection]
     
     response_data = None
@@ -350,7 +339,6 @@ async def send_message():
     error_logs = []
     
     async with httpx.AsyncClient() as client:
-        # Intentar conectar con la lista de modelos en cascada
         for current_model in models_to_try:
             gemini_url = f"https://generativelanguage.googleapis.com/v1beta/models/{current_model}:generateContent?key={api_key}"
             try:
@@ -394,17 +382,14 @@ async def send_message():
         raw_db_results = None
         response_text = ""
         
-        # Si el modelo decidió llamar a la consulta SQL
         if function_call:
             tool_name = function_call["name"]
             tool_args = function_call["args"]
             query_used = tool_args.get("sql")
             
-            # Ejecutar consulta SQL
             db_res = execute_sql(db_config, query_used)
             if db_res["status"] == "success":
                 raw_db_results = db_res["data"]
-                # Crear una copia limpia sin imágenes Base64 pesadas para no inflar la cookie de sesión
                 clean_db_results = []
                 for row in raw_db_results:
                     clean_row = {}
@@ -418,7 +403,6 @@ async def send_message():
             else:
                 db_result_str = f"Error al ejecutar SQL: {db_res['message']}"
             
-            # Guardar en historial
             chat_history.append(content)
             chat_history.append({
                 "role": "function",
@@ -434,7 +418,6 @@ async def send_message():
                 ]
             })
             
-            # Volver a llamar a Gemini (usando el modelo que funcionó en el paso anterior)
             final_payload = {
                 "contents": chat_history,
                 "tools": tools_config,
@@ -462,12 +445,12 @@ async def send_message():
     return jsonify({
         "response": response_text,
         "query_used": query_used,
-        "query_data": raw_db_results, # Datos puros en JSON de la BD para la tabla del chat
+        "query_data": raw_db_results,
         "reasoning": reasoning if function_call else None,
         "model_used": successful_model
     })
 
-# --- HTML LOGIN con Glassmorphism ---
+# --- HTML LOGIN con Google Material Design 3 ---
 
 HTML_LOGIN = """
 <!DOCTYPE html>
@@ -477,17 +460,33 @@ HTML_LOGIN = """
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>MCP Database Gateway</title>
     <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/icon?family=Material+Symbols+Rounded" rel="stylesheet">
     <style>
         :root {
-            --bg-color: #0a0a12;
-            --card-bg: rgba(18, 14, 30, 0.5);
-            --border-color: rgba(139, 92, 246, 0.15);
-            --primary: #8b5cf6;
-            --primary-hover: #a78bfa;
-            --accent: #10b981;
-            --accent-hover: #34d399;
-            --text-main: #e8e4f0;
-            --text-muted: #9a8fae;
+            /* M3 Dark por defecto */
+            --bg-color: #141218;
+            --card-bg: rgba(28, 27, 31, 0.7);
+            --border-color: rgba(208, 188, 255, 0.15);
+            --primary: #D0BCFF;
+            --primary-hover: #EADDFF;
+            --accent: #b8f397;
+            --accent-hover: #c8ffb0;
+            --text-main: #E6E1E5;
+            --text-muted: #CAC4D0;
+            --surface-variant: rgba(73, 69, 79, 0.2);
+        }
+        body.light-theme {
+            /* M3 Light */
+            --bg-color: #f8f9ff;
+            --card-bg: rgba(255, 255, 255, 0.75);
+            --border-color: rgba(103, 80, 164, 0.15);
+            --primary: #6750A4;
+            --primary-hover: #21005D;
+            --accent: #386a20;
+            --accent-hover: #1b5e20;
+            --text-main: #1c1b1f;
+            --text-muted: #49454f;
+            --surface-variant: rgba(231, 224, 236, 0.5);
         }
         body {
             font-family: 'Plus Jakarta Sans', sans-serif;
@@ -498,11 +497,34 @@ HTML_LOGIN = """
             align-items: center;
             min-height: 100vh;
             margin: 0;
-            background-image: 
-                radial-gradient(at 0% 0%, rgba(139, 92, 246, 0.2) 0px, transparent 50%),
-                radial-gradient(at 100% 100%, rgba(16, 185, 129, 0.1) 0px, transparent 50%);
+            transition: background-color 0.4s ease, color 0.4s ease;
             overflow-x: hidden;
+            position: relative;
         }
+        
+        /* Tema Switcher Flotante */
+        .theme-switcher-float {
+            position: fixed;
+            top: 24px;
+            right: 24px;
+            background: var(--card-bg);
+            border: 1px solid var(--border-color);
+            padding: 10px;
+            border-radius: 50%;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: var(--primary);
+            box-shadow: 0 4px 15px rgba(0,0,0,0.2);
+            transition: all 0.3s ease;
+            z-index: 100;
+        }
+        .theme-switcher-float:hover {
+            transform: scale(1.1) rotate(15deg);
+            background: var(--surface-variant);
+        }
+        
         .container {
             width: 100%;
             max-width: 500px;
@@ -519,19 +541,19 @@ HTML_LOGIN = """
             backdrop-filter: blur(24px);
             border-radius: 28px;
             padding: 40px;
-            box-shadow: 0 25px 50px -12px rgba(139, 92, 246, 0.15);
+            box-shadow: 0 25px 50px -12px rgba(103, 80, 164, 0.15);
             transition: all 0.3s;
         }
         .card:hover {
-            border-color: rgba(139, 92, 246, 0.35);
-            box-shadow: 0 25px 60px -10px rgba(139, 92, 246, 0.25);
+            border-color: var(--primary);
+            box-shadow: 0 25px 60px -10px rgba(103, 80, 164, 0.25);
         }
         h2 {
             margin-top: 0;
             font-weight: 800;
             font-size: 30px;
             letter-spacing: -0.8px;
-            background: linear-gradient(135deg, #a78bfa, #10b981);
+            background: linear-gradient(135deg, var(--primary), var(--accent));
             -webkit-background-clip: text;
             -webkit-text-fill-color: transparent;
             text-align: center;
@@ -550,8 +572,11 @@ HTML_LOGIN = """
             text-transform: uppercase;
             letter-spacing: 1.5px;
             margin: 25px 0 15px 0;
-            border-bottom: 1px solid rgba(16, 185, 129, 0.2);
+            border-bottom: 1px solid var(--border-color);
             padding-bottom: 6px;
+            display: flex;
+            align-items: center;
+            gap: 6px;
         }
         .form-group {
             margin-bottom: 20px;
@@ -568,7 +593,7 @@ HTML_LOGIN = """
         input, select {
             width: 100%;
             padding: 14px 18px;
-            background: rgba(255, 255, 255, 0.02);
+            background: var(--surface-variant);
             border: 1px solid var(--border-color);
             border-radius: 14px;
             color: var(--text-main);
@@ -578,8 +603,8 @@ HTML_LOGIN = """
         }
         input:focus, select:focus {
             outline: none;
-            border-color: var(--primary-hover);
-            box-shadow: 0 0 0 4px rgba(139, 92, 246, 0.18);
+            border-color: var(--primary);
+            box-shadow: 0 0 0 4px rgba(103, 80, 164, 0.2);
             background: rgba(255, 255, 255, 0.05);
             transform: scale(1.01);
         }
@@ -593,24 +618,46 @@ HTML_LOGIN = """
         .btn {
             width: 100%;
             padding: 16px;
-            background: linear-gradient(135deg, var(--primary), var(--accent));
+            background: var(--primary);
             border: none;
             border-radius: 14px;
-            color: white;
+            color: var(--bg-color);
             font-size: 16px;
             font-weight: 700;
             cursor: pointer;
             transition: all 0.3s ease;
-            box-shadow: 0 8px 24px rgba(139, 92, 246, 0.25);
+            box-shadow: 0 8px 24px rgba(103, 80, 164, 0.2);
             margin-top: 20px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+        }
+        body.light-theme .btn {
+            color: #fff;
         }
         .btn:hover {
             transform: translateY(-2px);
-            box-shadow: 0 12px 30px rgba(139, 92, 246, 0.4);
-            background: linear-gradient(135deg, var(--primary-hover), var(--accent-hover));
+            box-shadow: 0 12px 30px rgba(103, 80, 164, 0.35);
+            background: var(--primary-hover);
         }
-        .btn:active {
-            transform: translateY(1px);
+        .btn-load {
+            padding: 14px 18px;
+            background: var(--surface-variant);
+            border: 1px solid var(--border-color);
+            border-radius: 14px;
+            color: var(--accent);
+            cursor: pointer;
+            font-size: 13px;
+            font-weight: bold;
+            transition: all 0.2s;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+        .btn-load:hover {
+            background: var(--border-color);
+            color: var(--accent-hover);
         }
         .error {
             background: rgba(239, 68, 68, 0.1);
@@ -630,7 +677,6 @@ HTML_LOGIN = """
         }
     </style>
     <script>
-        // Cambiar puerto automáticamente al cambiar el motor de BD
         function handleDbTypeChange() {
             const dbTypeSelect = document.getElementById("db_type");
             const portInput = document.getElementById("port");
@@ -642,7 +688,6 @@ HTML_LOGIN = """
             }
         }
 
-        // Carga dinámicamente las bases de datos desde las credenciales actuales
         async function loadDatabases() {
             const btn = document.getElementById("btn-load-dbs");
             const dbSelect = document.getElementById("database");
@@ -657,8 +702,8 @@ HTML_LOGIN = """
                 return;
             }
             
-            const originalText = btn.innerText;
-            btn.innerText = "⏳ ...";
+            const originalText = btn.innerHTML;
+            btn.innerHTML = '<span class="material-symbols-rounded">sync</span> Cargando...';
             btn.disabled = true;
             
             try {
@@ -682,7 +727,6 @@ HTML_LOGIN = """
                         const opt = document.createElement("option");
                         opt.value = db;
                         opt.innerText = db;
-                        // Pre-seleccionar 'Northwind' si se encuentra disponible
                         if (db.toLowerCase() === "northwind") {
                             opt.selected = true;
                         }
@@ -694,13 +738,38 @@ HTML_LOGIN = """
             } catch (err) {
                 alert("Error de comunicación con el servidor al buscar las bases de datos.");
             } finally {
-                btn.innerText = originalText;
+                btn.innerHTML = originalText;
                 btn.disabled = false;
             }
         }
+
+        function toggleTheme() {
+            const body = document.body;
+            const icon = document.getElementById("theme-icon");
+            if (body.classList.contains("light-theme")) {
+                body.classList.remove("light-theme");
+                icon.innerText = "light_mode";
+                localStorage.setItem("m3-theme", "dark");
+            } else {
+                body.classList.add("light-theme");
+                icon.innerText = "dark_mode";
+                localStorage.setItem("m3-theme", "light");
+            }
+        }
+
+        document.addEventListener("DOMContentLoaded", () => {
+            const savedTheme = localStorage.getItem("m3-theme");
+            if (savedTheme === "light") {
+                document.body.classList.add("light-theme");
+                document.getElementById("theme-icon").innerText = "dark_mode";
+            }
+        });
     </script>
 </head>
 <body>
+    <button class="theme-switcher-float" onclick="toggleTheme()">
+        <span class="material-symbols-rounded" id="theme-icon">light_mode</span>
+    </button>
     <div class="container">
         <div class="card">
             <h2>MCP Database Gateway</h2>
@@ -713,7 +782,7 @@ HTML_LOGIN = """
             {% endif %}
             
             <form method="POST">
-                <div class="section-title">1. Configuración de IA (Google Gemini)</div>
+                <div class="section-title"><span class="material-symbols-rounded">psychology</span> 1. Configuración de IA (Google Gemini)</div>
                 <div class="form-group">
                     <label>API Key de Gemini</label>
                     <input type="password" name="api_key" placeholder="Pega tu API Key de Google AI Studio" value="{{ form_data.api_key or '' }}" required>
@@ -729,7 +798,7 @@ HTML_LOGIN = """
                     </select>
                 </div>
 
-                <div class="section-title">2. Conexión a la Base de Datos</div>
+                <div class="section-title"><span class="material-symbols-rounded">database</span> 2. Conexión a la Base de Datos</div>
                 <div class="form-group">
                     <label>Motor de Base de Datos</label>
                     <select name="db_type" id="db_type" onchange="handleDbTypeChange()">
@@ -767,18 +836,20 @@ HTML_LOGIN = """
                                 <option value="" disabled selected>Introduce credenciales y pulsa Cargar ➔</option>
                             {% endif %}
                         </select>
-                        <button type="button" onclick="loadDatabases()" id="btn-load-dbs" style="padding: 14px 18px; background: rgba(139, 92, 246, 0.15); border: 1px solid var(--border-color); border-radius: 14px; color: var(--accent); cursor: pointer; font-size: 13px; font-weight: bold; transition: all 0.2s;">
-                            🔄 Cargar
+                        <button type="button" onclick="loadDatabases()" id="btn-load-dbs" class="btn-load">
+                            <span class="material-symbols-rounded">sync</span> Cargar
                         </button>
                     </div>
                 </div>
-                <button type="submit" class="btn">Conectar y Analizar</button>
+                <button type="submit" class="btn"><span class="material-symbols-rounded">login</span> Conectar y Analizar</button>
             </form>
         </div>
     </div>
 </body>
 </html>
 """
+
+# --- HTML CHAT con Google Material Design 3 y Switcher de Temas ---
 
 HTML_CHAT = """
 <!DOCTYPE html>
@@ -788,22 +859,40 @@ HTML_CHAT = """
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>MCP Chat - {{ db_name }}</title>
     <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/icon?family=Material+Symbols+Rounded" rel="stylesheet">
     <!-- Cargar marked.js y Chart.js para visualizaciones y MD -->
     <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <style>
         :root {
-            --bg-color: #0a0a12;
-            --sidebar-bg: rgba(14, 10, 26, 0.75);
-            --chat-bg: #0a0a12;
-            --card-bg: rgba(18, 14, 30, 0.5);
-            --border-color: rgba(139, 92, 246, 0.15);
-            --primary: #8b5cf6;
-            --primary-hover: #a78bfa;
-            --accent: #10b981;
-            --accent-hover: #34d399;
-            --text-main: #e8e4f0;
-            --text-muted: #9a8fae;
+            /* M3 Dark Theme */
+            --bg-color: #141218;
+            --sidebar-bg: rgba(28, 27, 31, 0.85);
+            --chat-bg: #141218;
+            --card-bg: rgba(37, 35, 41, 0.6);
+            --border-color: rgba(208, 188, 255, 0.12);
+            --primary: #D0BCFF;
+            --primary-hover: #EADDFF;
+            --accent: #b8f397;
+            --accent-hover: #c8ffb0;
+            --text-main: #E6E1E5;
+            --text-muted: #CAC4D0;
+            --surface-variant: rgba(73, 69, 79, 0.35);
+        }
+        body.light-theme {
+            /* M3 Light Theme */
+            --bg-color: #f8f9ff;
+            --sidebar-bg: rgba(240, 244, 248, 0.9);
+            --chat-bg: #f8f9ff;
+            --card-bg: rgba(255, 255, 255, 0.7);
+            --border-color: rgba(103, 80, 164, 0.12);
+            --primary: #6750A4;
+            --primary-hover: #21005D;
+            --accent: #386a20;
+            --accent-hover: #1b5e20;
+            --text-main: #1c1b1f;
+            --text-muted: #49454f;
+            --surface-variant: rgba(231, 224, 236, 0.6);
         }
         body {
             font-family: 'Plus Jakarta Sans', sans-serif;
@@ -814,29 +903,7 @@ HTML_CHAT = """
             height: 100vh;
             overflow: hidden;
             position: relative;
-        }
-        
-        /* Stars Background Animado por CSS hardware accelerated */
-        body::before {
-            content: '';
-            position: fixed;
-            top: 0; left: 0; width: 100vw; height: 100vh;
-            background-image: 
-                radial-gradient(1px 1px at 20px 30px, #fff, rgba(0,0,0,0)),
-                radial-gradient(1px 1px at 75px 120px, #fff, rgba(0,0,0,0)),
-                radial-gradient(1.5px 1.5px at 150px 80px, #a78bfa, rgba(0,0,0,0)),
-                radial-gradient(1px 1px at 280px 240px, #fff, rgba(0,0,0,0)),
-                radial-gradient(2px 2px at 310px 45px, #10b981, rgba(0,0,0,0));
-            background-repeat: repeat;
-            background-size: 400px 400px;
-            opacity: 0.12;
-            animation: moveStars 160s linear infinite;
-            z-index: -1;
-            pointer-events: none;
-        }
-        @keyframes moveStars {
-            from { background-position: 0 0; }
-            to { background-position: 1000px 1000px; }
+            transition: background-color 0.4s ease, color 0.4s ease;
         }
         
         /* Contenedor Principal Izquierda (Sidebar) y Derecha (Chat) */
@@ -860,7 +927,7 @@ HTML_CHAT = """
             flex-direction: column;
             box-sizing: border-box;
             flex-shrink: 0;
-            box-shadow: 5px 0 25px rgba(0, 0, 0, 0.4);
+            box-shadow: 5px 0 25px rgba(0, 0, 0, 0.2);
             z-index: 30;
             height: 100%;
             transform: translateX(0);
@@ -872,6 +939,7 @@ HTML_CHAT = """
             transform: translateX(-100%);
             box-shadow: none;
         }
+        
         /* El área de chat se ajusta dinámicamente al sidebar con transición suave */
         .main-chat-area {
             transition: margin-left 0.4s cubic-bezier(0.22, 1, 0.36, 1);
@@ -880,67 +948,46 @@ HTML_CHAT = """
             margin-left: -320px;
         }
         
-        /* Botón Toggle con Icono de Base de Datos */
+        /* Botón Toggle con Icono de Base de Datos integrado directamente al sidebar */
         .sidebar-toggle-btn {
-            width: 40px;
-            height: 40px;
-            position: relative;
+            width: 48px;
+            height: 48px;
+            position: absolute;
+            top: 14px;
+            right: -60px; /* Queda flotando fuera del sidebar para poder abrirlo cuando se colapsa */
             cursor: pointer;
-            border-radius: 12px;
-            background: rgba(139, 92, 246, 0.1);
-            border: 1px solid rgba(139, 92, 246, 0.3);
+            border-radius: 16px;
+            background: var(--card-bg);
+            border: 1px solid var(--border-color);
             display: flex;
             align-items: center;
             justify-content: center;
             transition: all 0.35s cubic-bezier(0.4, 0, 0.2, 1);
-            flex-shrink: 0;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.15);
+            z-index: 35;
         }
         .sidebar-toggle-btn:hover {
-            background: rgba(139, 92, 246, 0.25);
+            background: var(--surface-variant);
             transform: translateY(-1px);
-            box-shadow: 0 4px 16px rgba(139, 92, 246, 0.3);
+            box-shadow: 0 6px 20px rgba(0,0,0,0.25);
         }
         .sidebar-toggle-btn .db-toggle-icon {
-            width: 20px;
-            height: 20px;
-            fill: var(--accent);
-            transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
-            filter: drop-shadow(0 0 4px rgba(16, 185, 129, 0.4));
+            font-size: 24px;
+            color: var(--accent);
+            transition: all 0.4s ease;
         }
         /* Cuando el sidebar está abierto: el icono brilla y pulsa suavemente */
         .sidebar-toggle-btn.is-open .db-toggle-icon {
-            fill: var(--accent-hover);
-            filter: drop-shadow(0 0 8px rgba(52, 211, 153, 0.6));
+            color: var(--primary);
             animation: dbPulse 2s ease-in-out infinite;
-        }
-        .sidebar-toggle-btn.is-open {
-            background: rgba(16, 185, 129, 0.12);
-            border-color: rgba(16, 185, 129, 0.35);
         }
         @keyframes dbPulse {
             0%, 100% { transform: scale(1); }
-            50% { transform: scale(1.1); }
+            50% { transform: scale(1.15); }
         }
         /* Cuando el sidebar está cerrado: el icono se atenúa */
         .sidebar-toggle-btn:not(.is-open) .db-toggle-icon {
-            fill: var(--text-muted);
-            filter: none;
-        }
-        .sidebar-header {
-            padding: 20px 18px;
-            border-bottom: 1px solid var(--border-color);
-        }
-        .sidebar-header h3 {
-            margin: 0;
-            font-size: 13px;
-            font-weight: 800;
-            text-transform: uppercase;
-            letter-spacing: 1.5px;
-            color: var(--accent);
-            display: flex;
-            align-items: center;
-            gap: 8px;
-            text-shadow: 0 0 10px rgba(16, 185, 129, 0.3);
+            color: var(--text-muted);
         }
         
         .sidebar-scroll-panel {
@@ -948,6 +995,7 @@ HTML_CHAT = """
             overflow-y: auto;
             display: flex;
             flex-direction: column;
+            padding-top: 76px; /* Espacio para que el botón flotante arriba no cubra los nodos */
         }
         
         /* Scrollbars Premium Ultradelgados */
@@ -956,21 +1004,21 @@ HTML_CHAT = """
             height: 6px;
         }
         ::-webkit-scrollbar-track {
-            background: rgba(0,0,0,0.1);
+            background: rgba(0,0,0,0.05);
         }
         ::-webkit-scrollbar-thumb {
-            background: rgba(139, 92, 246, 0.2);
+            background: var(--border-color);
             border-radius: 4px;
         }
         ::-webkit-scrollbar-thumb:hover {
-            background: rgba(167, 139, 250, 0.55);
+            background: var(--primary);
         }
         
         .db-tree-container {
             padding: 16px 14px;
         }
         .db-node {
-            font-size: 13px;
+            font-size: 13.5px;
             font-weight: 700;
             color: var(--text-main);
             margin-bottom: 16px;
@@ -978,10 +1026,9 @@ HTML_CHAT = """
             align-items: center;
             gap: 8px;
         }
-        .db-node svg {
-            width: 16px;
-            height: 16px;
-            fill: var(--accent);
+        .db-node span.material-symbols-rounded {
+            font-size: 20px;
+            color: var(--accent);
         }
         .table-node {
             margin-left: 10px;
@@ -1000,23 +1047,21 @@ HTML_CHAT = """
             user-select: none;
         }
         .table-header-node:hover {
-            background: rgba(139, 92, 246, 0.08);
-            color: var(--primary-hover);
+            background: var(--surface-variant);
+            color: var(--primary);
         }
         .table-name-wrapper {
             display: flex;
             align-items: center;
             gap: 8px;
         }
-        .table-header-node svg.table-icon {
-            width: 14px;
-            height: 14px;
-            fill: var(--primary);
+        .table-header-node span.table-icon {
+            font-size: 18px;
+            color: var(--primary);
         }
-        .table-header-node svg.caret-icon {
-            width: 10px;
-            height: 10px;
-            fill: var(--text-muted);
+        .table-header-node span.caret-icon {
+            font-size: 16px;
+            color: var(--text-muted);
             transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
         }
         
@@ -1028,21 +1073,22 @@ HTML_CHAT = """
             font-weight: bold;
             padding: 2px 6px;
             border-radius: 6px;
-            background: rgba(16, 185, 129, 0.1);
-            border: 1px solid rgba(16, 185, 129, 0.25);
+            background: rgba(184, 243, 151, 0.1);
+            border: 1px solid var(--border-color);
             text-transform: uppercase;
             letter-spacing: 0.5px;
+            display: flex;
+            align-items: center;
+            gap: 2px;
         }
         .table-header-node:hover .preview-btn {
             opacity: 1;
         }
         .preview-btn:hover {
             transform: scale(1.1);
-            background: rgba(16, 185, 129, 0.2);
-            box-shadow: 0 0 8px rgba(16, 185, 129, 0.4);
+            background: var(--surface-variant);
         }
         
-        /* Lista de Columnas con Animación de Altura */
         .column-list {
             margin-left: 26px;
             max-height: 0;
@@ -1050,7 +1096,7 @@ HTML_CHAT = """
             transition: max-height 0.4s cubic-bezier(0.16, 1, 0.3, 1), opacity 0.3s ease;
             opacity: 0;
             padding-left: 10px;
-            border-left: 1px dashed rgba(139, 92, 246, 0.2);
+            border-left: 1px dashed var(--border-color);
             margin-top: 4px;
             margin-bottom: 4px;
         }
@@ -1060,7 +1106,7 @@ HTML_CHAT = """
         }
         .column-node {
             font-size: 11.5px;
-            color: #8fa0b5;
+            color: var(--text-muted);
             padding: 5px 8px;
             font-family: monospace;
             display: flex;
@@ -1073,8 +1119,8 @@ HTML_CHAT = """
             margin-bottom: 2px;
         }
         .column-node:hover {
-            background: rgba(139, 92, 246, 0.08);
-            color: var(--primary-hover);
+            background: var(--surface-variant);
+            color: var(--primary);
             padding-left: 12px;
         }
         .column-info {
@@ -1082,18 +1128,17 @@ HTML_CHAT = """
             align-items: center;
             gap: 6px;
         }
-        .column-node svg {
-            width: 10px;
-            height: 10px;
-            fill: currentColor;
+        .column-node span.material-symbols-rounded {
+            font-size: 14px;
+            color: var(--text-muted);
         }
         
         .attr-preview-btn {
             opacity: 0;
             font-size: 9px;
-            color: var(--primary);
-            background: rgba(139, 92, 246, 0.1);
-            border: 1px solid rgba(139, 92, 246, 0.2);
+            color: var(--accent);
+            background: rgba(184, 243, 151, 0.05);
+            border: 1px solid var(--border-color);
             padding: 1px 4px;
             border-radius: 4px;
             transition: opacity 0.2s, background 0.2s;
@@ -1102,8 +1147,8 @@ HTML_CHAT = """
             opacity: 1;
         }
         .attr-preview-btn:hover {
-            background: rgba(139, 92, 246, 0.25);
-            color: var(--primary-hover);
+            background: var(--surface-variant);
+            color: var(--accent-hover);
         }
         
         /* 2. Sección de Chat */
@@ -1122,10 +1167,10 @@ HTML_CHAT = """
             justify-content: space-between;
             align-items: center;
             padding: 16px 32px;
-            background: rgba(10, 10, 18, 0.5);
+            background: var(--card-bg);
             backdrop-filter: blur(16px);
             border-bottom: 1px solid var(--border-color);
-            box-shadow: 0 4px 30px rgba(0, 0, 0, 0.2);
+            box-shadow: 0 4px 30px rgba(0, 0, 0, 0.05);
             z-index: 10;
         }
         header h1 {
@@ -1133,7 +1178,7 @@ HTML_CHAT = """
             font-size: 20px;
             font-weight: 800;
             letter-spacing: -0.6px;
-            background: linear-gradient(135deg, #a78bfa, #34d399);
+            background: linear-gradient(135deg, var(--primary), var(--accent));
             -webkit-background-clip: text;
             -webkit-text-fill-color: transparent;
         }
@@ -1143,8 +1188,8 @@ HTML_CHAT = """
             align-items: center;
         }
         .db-badge {
-            background: rgba(16, 185, 129, 0.1);
-            border: 1px solid rgba(16, 185, 129, 0.25);
+            background: var(--surface-variant);
+            border: 1px solid var(--border-color);
             color: var(--accent);
             padding: 6px 12px;
             border-radius: 20px;
@@ -1155,9 +1200,9 @@ HTML_CHAT = """
             gap: 6px;
         }
         .model-badge {
-            background: rgba(139, 92, 246, 0.1);
-            border: 1px solid rgba(139, 92, 246, 0.25);
-            color: var(--primary-hover);
+            background: var(--surface-variant);
+            border: 1px solid var(--border-color);
+            color: var(--primary);
             padding: 6px 12px;
             border-radius: 20px;
             font-size: 12px;
@@ -1182,30 +1227,22 @@ HTML_CHAT = """
             transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
             cursor: pointer;
             box-sizing: border-box;
+            background: var(--surface-variant);
+            border: 1px solid var(--border-color);
+            color: var(--text-main);
         }
-        .btn-modify {
-            background: rgba(139, 92, 246, 0.1);
-            border: 1px solid rgba(139, 92, 246, 0.3);
-            color: var(--primary-hover);
-        }
-        .btn-modify:hover {
-            background: rgba(139, 92, 246, 0.25);
+        .header-btn:hover {
+            background: var(--border-color);
             transform: translateY(-1px);
         }
-        .btn-disconnect {
-            background: transparent;
-            color: #ff4d4d;
-            border: 1px solid transparent;
-        }
-        .btn-disconnect:hover {
-            background: rgba(255, 77, 77, 0.1);
-            border-color: rgba(255, 77, 77, 0.2);
+        .header-btn .material-symbols-rounded {
+            font-size: 20px;
         }
         
         .chat-container {
             flex: 1;
             overflow-y: auto;
-            padding: 32px 32px 100px 32px; /* Más padding abajo para no tapar el chat con el floating bar */
+            padding: 32px 32px 100px 32px;
             display: flex;
             flex-direction: column;
             gap: 24px;
@@ -1237,12 +1274,16 @@ HTML_CHAT = """
             font-size: 15px;
             line-height: 1.6;
             word-wrap: break-word;
-            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.1);
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.05);
         }
         .message.user .bubble {
-            background: linear-gradient(135deg, var(--primary), #1e1b4b);
-            color: white;
+            background: linear-gradient(135deg, var(--primary), var(--surface-variant));
+            color: var(--text-main);
             border-bottom-right-radius: 4px;
+        }
+        body.light-theme .message.user .bubble {
+            color: #fff;
+            background: linear-gradient(135deg, var(--primary), #4b3d73);
         }
         .message.assistant .bubble {
             background: var(--card-bg);
@@ -1251,13 +1292,13 @@ HTML_CHAT = """
             border-bottom-left-radius: 4px;
         }
         
-        /* Soporte para rendering de Markdown */
+        /* Rendering de Markdown */
         .bubble p { margin-top: 0; margin-bottom: 12px; }
         .bubble p:last-child { margin-bottom: 0; }
         .bubble ul, .bubble ol { margin: 8px 0; padding-left: 20px; }
         .bubble table { border-collapse: collapse; width: 100%; margin: 12px 0; font-size: 13.5px; }
         .bubble table th, .bubble table td { border: 1px solid var(--border-color); padding: 8px 12px; text-align: left; }
-        .bubble table th { background: rgba(139, 92, 246, 0.1); }
+        .bubble table th { background: var(--surface-variant); }
         
         /* Botones de acción del query */
         .query-actions {
@@ -1266,9 +1307,9 @@ HTML_CHAT = """
             margin-top: 12px;
         }
         .action-tab-btn {
-            background: rgba(139, 92, 246, 0.08);
+            background: var(--surface-variant);
             border: 1px solid var(--border-color);
-            color: var(--primary-hover);
+            color: var(--text-main);
             padding: 8px 14px;
             font-size: 12.5px;
             font-weight: 600;
@@ -1279,50 +1320,54 @@ HTML_CHAT = """
             gap: 6px;
             transition: all 0.3s ease;
         }
+        .action-tab-btn .material-symbols-rounded {
+            font-size: 18px;
+        }
         .action-tab-btn:hover {
-            background: rgba(139, 92, 246, 0.18);
-            border-color: rgba(139, 92, 246, 0.3);
+            background: var(--border-color);
             transform: translateY(-1px);
         }
         .action-tab-btn.active {
-            background: rgba(16, 185, 129, 0.1);
-            border-color: rgba(16, 185, 129, 0.3);
-            color: var(--accent);
+            background: var(--primary);
+            color: var(--bg-color);
+            border-color: var(--primary);
+        }
+        body.light-theme .action-tab-btn.active {
+            color: #fff;
         }
         
-        /* Panel del Query y la Tabla de Datos con Animaciones de Apertura y Cierre */
+        /* Panel del Query y la Tabla de Datos */
         .query-container {
             margin-top: 10px;
-            background: rgba(4, 8, 20, 0.5);
+            background: var(--card-bg);
             border: 1px solid var(--border-color);
             border-radius: 14px;
             overflow: hidden;
-            box-shadow: 0 6px 20px rgba(0, 0, 0, 0.2);
+            box-shadow: 0 6px 20px rgba(0, 0, 0, 0.1);
             display: block;
             max-height: 0;
             opacity: 0;
             transition: max-height 0.4s cubic-bezier(0.16, 1, 0.3, 1), opacity 0.35s ease, margin-top 0.4s ease;
         }
         .query-container.open {
-            max-height: 550px; /* Incrementado para gráficos grandes */
+            max-height: 580px;
             opacity: 1;
             margin-top: 10px;
         }
         .query-body {
             padding: 14px 18px;
-            background: #08060f;
+            background: var(--surface-variant);
         }
         .query-body pre {
             margin: 0;
             font-family: 'Courier New', Courier, monospace;
             font-size: 13.5px;
-            color: var(--accent);
+            color: var(--primary);
             overflow-x: auto;
             white-space: pre-wrap;
             line-height: 1.5;
         }
         
-        /* Contenedor de la Tabla de Datos */
         .data-table-container {
             max-height: 250px;
             overflow-y: auto;
@@ -1336,21 +1381,21 @@ HTML_CHAT = """
             text-align: left;
         }
         table.db-data-table th {
-            background: rgba(139, 92, 246, 0.15);
-            color: var(--primary-hover);
+            background: var(--surface-variant);
+            color: var(--primary);
             padding: 10px 12px;
             font-weight: 700;
-            border-bottom: 1px solid rgba(139, 92, 246, 0.25);
+            border-bottom: 1px solid var(--border-color);
             position: sticky;
             top: 0;
         }
         table.db-data-table td {
             padding: 8px 12px;
-            border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+            border-bottom: 1px solid var(--border-color);
             color: var(--text-main);
         }
         table.db-data-table tr:hover {
-            background: rgba(255, 255, 255, 0.03);
+            background: rgba(255, 255, 255, 0.02);
         }
         
         /* Footer del Chat Flotante */
@@ -1367,20 +1412,20 @@ HTML_CHAT = """
             z-index: 10;
         }
         .input-wrapper {
-            background: rgba(14, 10, 26, 0.8);
+            background: var(--card-bg);
             backdrop-filter: blur(24px);
-            border: 1px solid rgba(139, 92, 246, 0.25);
+            border: 1px solid var(--border-color);
             border-radius: 24px;
             padding: 8px 12px;
-            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5), 0 0 15px rgba(139, 92, 246, 0.15);
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.1), 0 0 15px rgba(103, 80, 164, 0.05);
             display: flex;
             gap: 12px;
             align-items: center;
             transition: all 0.35s cubic-bezier(0.4, 0, 0.2, 1);
         }
         .input-wrapper:focus-within {
-            border-color: var(--primary-hover);
-            box-shadow: 0 12px 35px rgba(0, 0, 0, 0.6), 0 0 25px rgba(139, 92, 246, 0.3);
+            border-color: var(--primary);
+            box-shadow: 0 12px 35px rgba(0, 0, 0, 0.2), 0 0 25px rgba(103, 80, 164, 0.15);
             transform: translateY(-2px);
         }
         textarea {
@@ -1399,8 +1444,8 @@ HTML_CHAT = """
             box-shadow: none !important;
         }
         .send-btn {
-            background: linear-gradient(135deg, var(--primary), var(--accent));
-            color: white;
+            background: var(--primary);
+            color: var(--bg-color);
             border: none;
             border-radius: 18px;
             width: 48px;
@@ -1410,25 +1455,22 @@ HTML_CHAT = """
             align-items: center;
             cursor: pointer;
             transition: all 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
-            box-shadow: 0 6px 15px rgba(139, 92, 246, 0.3);
+            box-shadow: 0 6px 15px rgba(103, 80, 164, 0.2);
             flex-shrink: 0;
+        }
+        body.light-theme .send-btn {
+            color: #fff;
         }
         .send-btn:hover {
             transform: scale(1.08) rotate(5deg);
-            box-shadow: 0 8px 22px rgba(139, 92, 246, 0.5);
-            background: linear-gradient(135deg, var(--primary-hover), var(--accent-hover));
+            box-shadow: 0 8px 22px rgba(103, 80, 164, 0.35);
+            background: var(--primary-hover);
         }
         .send-btn:active {
             transform: scale(0.95);
         }
-        .send-btn svg {
-            width: 20px;
-            height: 20px;
-            fill: none;
-            stroke: currentColor;
-            stroke-width: 2;
-            stroke-linecap: round;
-            stroke-linejoin: round;
+        .send-btn span.material-symbols-rounded {
+            font-size: 24px;
         }
         
         /* Spinner de carga */
@@ -1441,7 +1483,7 @@ HTML_CHAT = """
         .dot {
             width: 8px;
             height: 8px;
-            background: var(--primary-hover);
+            background: var(--primary);
             border-radius: 50%;
             animation: bounce 1.4s infinite ease-in-out both;
         }
@@ -1457,18 +1499,17 @@ HTML_CHAT = """
     <div class="app-layout">
         <!-- 1. PANEL IZQUIERDO: SQL MANAGER -->
         <aside class="sidebar">
-            <div class="sidebar-header">
-                <h3>🗄️ SQL Manager Tree</h3>
-            </div>
+            <!-- Botón Retráctil Integrado al Sidebar que sobresale en su parte derecha -->
+            <button onclick="toggleSidebar()" class="sidebar-toggle-btn is-open" id="sidebar-toggle" title="Mostrar/Ocultar SQL Manager">
+                <span class="material-symbols-rounded db-toggle-icon">database</span>
+            </button>
             
             <div class="sidebar-scroll-panel">
                 <div class="db-tree-container">
                     <!-- Nodo Raíz: Base de datos -->
                     <div class="db-node">
-                        <svg viewBox="0 0 24 24">
-                            <path d="M12 2C6.5 2 2 4.2 2 7s4.5 5 10 5 10-2.2 10-5-4.5-5-10-5zm0 16c-5.5 0-10-1.8-10-4v-2c0 2.2 4.5 4 10 4s10-1.8 10-4v2c0 2.2-4.5 4-10 4zm0 4c-5.5 0-10-1.8-10-4v-2c0 2.2 4.5 4 10 4s10-1.8 10-4v2c0 2.2-4.5 4-10 4z"/>
-                        </svg>
-                        Database: <span style="color: var(--accent);">{{ db_name }}</span>
+                        <span class="material-symbols-rounded">database</span>
+                        Database: <span style="color: var(--accent); font-weight: bold;">{{ db_name }}</span>
                     </div>
                     
                     <!-- Hijos: Tablas -->
@@ -1476,25 +1517,20 @@ HTML_CHAT = """
                     <div class="table-node">
                         <div class="table-header-node" onclick="toggleTableNode(this)">
                             <div class="table-name-wrapper">
-                                <svg class="caret-icon" viewBox="0 0 24 24" style="transform: rotate(0deg); width: 8px; height: 8px;">
-                                    <polygon points="8 5 16 12 8 19 8 5"></polygon>
-                                </svg>
-                                <svg class="table-icon" viewBox="0 0 24 24" style="fill: #1e90ff; width: 14px; height: 14px;">
-                                    <path d="M4 3h16c1.1 0 2 .9 2 2v14c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V5c0-1.1.9-2 2-2zm0 4h16V5H4v2zm0 5h7V9H4v3zm9 0h7V9h-7v3zm-9 5h7v-3H4v3zm9 0h7v-3h-7v3z"/>
-                                </svg>
+                                <span class="material-symbols-rounded caret-icon">chevron_right</span>
+                                <span class="material-symbols-rounded table-icon">table_chart</span>
                                 <strong>{{ table }}</strong>
                             </div>
-                            <button class="preview-btn" onclick="previewTable(event, '{{ table }}')" title="Consultar 5 filas rápidas">Preview</button>
+                            <button class="preview-btn" onclick="previewTable(event, '{{ table }}')" title="Consultar 5 filas rápidas">
+                                <span class="material-symbols-rounded" style="font-size: 14px;">visibility</span> Vista
+                            </button>
                         </div>
-                        <!-- Lista de Columnas Plegables -->
                         <div class="column-list">
                             {% for col in cols %}
                             <div class="column-node" onclick="insertColumn('{{ table }}', '{{ col.name }}')">
                                 <div class="column-info">
-                                    <svg viewBox="0 0 24 24" style="fill: currentColor; width: 10px; height: 10px;">
-                                        <path d="M12.65 11.35c.02-.11.03-.23.03-.35 0-1.93-1.57-3.5-3.5-3.5s-3.5 1.57-3.5 3.5 1.57 3.5 3.5 3.5c.12 0 .24-.01.35-.03L12 17v2h2v-2h2v-2h-3.35z"/>
-                                    </svg>
-                                    <span>{{ col.name }}</span> <span style="color: #6a7c92; font-size: 10px;">({{ col.type }})</span>
+                                    <span class="material-symbols-rounded">key</span>
+                                    <span>{{ col.name }}</span> <span style="color: var(--text-muted); font-size: 10px;">({{ col.type }})</span>
                                 </div>
                                 <button class="attr-preview-btn" onclick="previewColumn(event, '{{ table }}', '{{ col.name }}')" title="Ver valores únicos de esta columna">Analizar</button>
                             </div>
@@ -1510,34 +1546,26 @@ HTML_CHAT = """
         <main class="main-chat-area">
             <header>
                 <div style="display: flex; align-items: center; gap: 16px;">
-                    <!-- Botón Retráctil con Icono de Base de Datos -->
-                    <button onclick="toggleSidebar()" class="sidebar-toggle-btn is-open" id="sidebar-toggle" title="Mostrar/Ocultar SQL Manager">
-                        <svg class="db-toggle-icon" viewBox="0 0 24 24">
-                            <path d="M12 2C6.5 2 2 4.2 2 7s4.5 5 10 5 10-2.2 10-5-4.5-5-10-5zm0 16c-5.5 0-10-1.8-10-4v-2c0 2.2 4.5 4 10 4s10-1.8 10-4v2c0 2.2-4.5 4-10 4zm0 4c-5.5 0-10-1.8-10-4v-2c0 2.2 4.5 4 10 4s10-1.8 10-4v2c0 2.2-4.5 4-10 4z"/>
-                        </svg>
-                    </button>
-                    <h1>MCP Relational AI</h1>
+                    <h1 style="margin-left: 20px;">MCP Relational AI</h1>
                     <div class="badges-wrapper">
                         <div class="db-badge">
-                            <span style="font-size: 8px;">●</span> {{ db_type.upper() }} ({{ db_name }})
+                            <span class="material-symbols-rounded" style="font-size: 14px;">database</span> {{ db_type.upper() }} ({{ db_name }})
                         </div>
                         <div class="model-badge" id="active-model-badge">
-                            ⚡ {{ model_name }}
+                            <span class="material-symbols-rounded" style="font-size: 14px;">psychology</span> {{ model_name }}
                         </div>
                     </div>
                 </div>
                 <div class="actions-wrapper">
-                    <a href="/" class="header-btn btn-modify" title="Modificar Conexión">
-                        <svg viewBox="0 0 24 24" style="width: 18px; height: 18px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round;">
-                            <path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"></path>
-                        </svg>
+                    <!-- Botón de Tema M3 -->
+                    <button class="header-btn" onclick="toggleTheme()" title="Cambiar Tema (Claro/Oscuro)">
+                        <span class="material-symbols-rounded" id="theme-icon">light_mode</span>
+                    </button>
+                    <a href="/" class="header-btn" title="Modificar Conexión">
+                        <span class="material-symbols-rounded">settings</span>
                     </a>
-                    <a href="/disconnect" class="header-btn btn-disconnect" title="Desconectar / Salir">
-                        <svg viewBox="0 0 24 24" style="width: 18px; height: 18px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round;">
-                            <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"></path>
-                            <polyline points="16 17 21 12 16 7"></polyline>
-                            <line x1="21" y1="12" x2="9" y2="12"></line>
-                        </svg>
+                    <a href="/disconnect" class="header-btn" title="Desconectar / Salir" style="color: #ff4d4d; border-color: rgba(255, 77, 77, 0.2);">
+                        <span class="material-symbols-rounded">logout</span>
                     </a>
                 </div>
             </header>
@@ -1555,10 +1583,7 @@ HTML_CHAT = """
                 <div class="input-wrapper">
                     <textarea id="message-input" placeholder="Pregunta algo sobre tus datos (ej. ¿cuántos registros hay en total?)..." rows="1"></textarea>
                     <button class="send-btn" id="send-button" title="Preguntar a la IA">
-                        <svg viewBox="0 0 24 24">
-                            <line x1="22" y1="2" x2="11" y2="13"></line>
-                            <polygon points="22 2 15 22 11 13 2 9 22 2"></polygon>
-                        </svg>
+                        <span class="material-symbols-rounded">send</span>
                     </button>
                 </div>
             </div>
@@ -1581,7 +1606,22 @@ HTML_CHAT = """
             toggleBtn.classList.toggle('is-open');
         }
 
-        // Control del Panel del Árbol SQL con transiciones de CSS
+        // Cambiar entre tema claro y oscuro
+        function toggleTheme() {
+            const body = document.body;
+            const icon = document.getElementById("theme-icon");
+            if (body.classList.contains("light-theme")) {
+                body.classList.remove("light-theme");
+                icon.innerText = "light_mode";
+                localStorage.setItem("m3-theme", "dark");
+            } else {
+                body.classList.add("light-theme");
+                icon.innerText = "dark_mode";
+                localStorage.setItem("m3-theme", "light");
+            }
+        }
+
+        // Control del Panel del Árbol SQL
         function toggleTableNode(nodeEl) {
             const list = nodeEl.nextElementSibling;
             const caret = nodeEl.querySelector('.caret-icon');
@@ -1589,10 +1629,10 @@ HTML_CHAT = """
             list.classList.toggle('open');
             if (list.classList.contains('open')) {
                 caret.style.transform = 'rotate(90deg)';
-                caret.style.fill = '#a78bfa';
+                caret.style.color = 'var(--primary)';
             } else {
                 caret.style.transform = 'rotate(0deg)';
-                caret.style.fill = '#8fa0b5';
+                caret.style.color = 'var(--text-muted)';
             }
         }
 
@@ -1673,7 +1713,6 @@ HTML_CHAT = """
             const canvas = panelEl.querySelector('.my-db-chart');
             if (!canvas) return;
             
-            // Auto-detectar columnas de etiquetas (Label) y valores (Data)
             const keys = Object.keys(queryData[0]);
             let labelKey = keys[0];
             let valueKey = keys[1] || keys[0];
@@ -1692,30 +1731,36 @@ HTML_CHAT = """
             
             const ctx = canvas.getContext('2d');
             
-            // Crear gradiente azul translúcido profesional para el relleno de línea
+            // Colores adaptados del tema activo
+            const isLightTheme = document.body.classList.contains("light-theme");
+            const strokeColor = isLightTheme ? '#6750A4' : '#D0BCFF';
+            const accentColor = isLightTheme ? '#386a20' : '#b8f397';
+            const gridColor = isLightTheme ? 'rgba(0,0,0,0.05)' : 'rgba(255,255,255,0.05)';
+            const textColor = isLightTheme ? '#1c1b1f' : '#E6E1E5';
+            
             const gradient = ctx.createLinearGradient(0, 0, 0, 300);
-            gradient.addColorStop(0, 'rgba(139, 92, 246, 0.4)');
-            gradient.addColorStop(0.5, 'rgba(139, 92, 246, 0.15)');
-            gradient.addColorStop(1, 'rgba(139, 92, 246, 0.0)');
+            gradient.addColorStop(0, isLightTheme ? 'rgba(103, 80, 164, 0.4)' : 'rgba(208, 188, 255, 0.4)');
+            gradient.addColorStop(0.5, isLightTheme ? 'rgba(103, 80, 164, 0.15)' : 'rgba(208, 188, 255, 0.15)');
+            gradient.addColorStop(1, 'rgba(0, 0, 0, 0.0)');
             
             if (canvas.chartInstance) {
                 canvas.chartInstance.destroy();
             }
             
             canvas.chartInstance = new Chart(ctx, {
-                type: 'line', // Línea por defecto
+                type: 'line',
                 data: {
                     labels: labels,
                     datasets: [{
                         label: valueKey,
                         data: dataPoints,
-                        borderColor: '#a78bfa',
+                        borderColor: strokeColor,
                         backgroundColor: gradient,
                         borderWidth: 3,
                         fill: true,
-                        tension: 0.35, // Suavizado bezier
-                        pointBackgroundColor: '#34d399',
-                        pointBorderColor: '#0a0a12',
+                        tension: 0.35,
+                        pointBackgroundColor: accentColor,
+                        pointBorderColor: isLightTheme ? '#ffffff' : '#141218',
                         pointBorderWidth: 2,
                         pointRadius: 5,
                         pointHoverRadius: 8
@@ -1727,17 +1772,17 @@ HTML_CHAT = """
                     plugins: {
                         legend: {
                             display: true,
-                            labels: { color: '#f0f4f8', font: { family: 'Plus Jakarta Sans', weight: '600' } }
+                            labels: { color: textColor, font: { family: 'Plus Jakarta Sans', weight: '600' } }
                         }
                     },
                     scales: {
                         x: {
-                            grid: { color: 'rgba(255,255,255,0.03)' },
-                            ticks: { color: '#8fa0b5', font: { family: 'Plus Jakarta Sans' } }
+                            grid: { color: gridColor },
+                            ticks: { color: textColor, font: { family: 'Plus Jakarta Sans' } }
                         },
                         y: {
-                            grid: { color: 'rgba(255,255,255,0.03)' },
-                            ticks: { color: '#8fa0b5', font: { family: 'Plus Jakarta Sans' } }
+                            grid: { color: gridColor },
+                            ticks: { color: textColor, font: { family: 'Plus Jakarta Sans' } }
                         }
                     }
                 }
@@ -1757,7 +1802,7 @@ HTML_CHAT = """
 
         // Crear una tabla HTML a partir del JSON de datos
         function generateHTMLTable(dataList) {
-            if (!dataList || dataList.length === 0) return "<p style='padding:12px;color:#8fa0b5;margin:0;'>La consulta no retornó datos o está vacía.</p>";
+            if (!dataList || dataList.length === 0) return "<p style='padding:12px;color:var(--text-muted);margin:0;'>La consulta no retornó datos o está vacía.</p>";
             
             const headers = Object.keys(dataList[0]);
             let tableHtml = `<div class="data-table-container"><table class="db-data-table"><thead><tr>`;
@@ -1774,7 +1819,7 @@ HTML_CHAT = """
                     if (cellVal === null) {
                         cellVal = "<span style='color:gray;'>NULL</span>";
                     } else if (typeof cellVal === 'string' && cellVal.startsWith('data:image/')) {
-                        cellVal = `<img src="${cellVal}" style="max-height: 48px; border-radius: 6px; box-shadow: 0 2px 8px rgba(0,0,0,0.3);" alt="Image" onerror="this.outerHTML='<span style=\\'color:gray;\\'>[Imagen no renderizable]</span>'" />`;
+                        cellVal = `<img src="${cellVal}" style="max-height: 48px; border-radius: 6px; box-shadow: 0 2px 8px rgba(0,0,0,0.15);" alt="Image" onerror="this.outerHTML='<span style=\\'color:gray;\\'>[Imagen no renderizable]</span>'" />`;
                     }
                     tableHtml += `<td>${cellVal}</td>`;
                 });
@@ -1803,22 +1848,20 @@ HTML_CHAT = """
                 let chartButton = '';
                 let chartPanelHtml = '';
                 
-                // Mostrar gráficos únicamente si el usuario lo solicitó de forma explícita
                 if (userExplicitlyRequestedChart) {
                     chartButton = `
                     <button class="action-tab-btn active" onclick="toggleViewContainer(this, 'chart-panel')">
-                        📈 Ver Gráfico
+                        <span class="material-symbols-rounded">insert_chart</span> Ver Gráfico
                     </button>`;
                     
                     chartPanelHtml = `
-                    <!-- Panel de Gráfico Profesional Abierto por Defecto en Tamaño Grande -->
                     <div class="query-container chart-panel open" style="max-height: 580px; opacity: 1; margin-top: 10px;">
-                        <div class="query-body" style="background:#030710; padding:0; position:relative; min-height: 380px;">
-                            <div style="padding: 10px 16px; display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid var(--border-color); background: rgba(30,144,255,0.08);">
-                                <label style="margin:0; font-size:12px; text-transform:none; font-weight:700; color:var(--accent);">📊 Visualización Gráfica Profesional</label>
+                        <div class="query-body" style="padding:0; position:relative; min-height: 380px;">
+                            <div style="padding: 10px 16px; display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid var(--border-color); background: var(--surface-variant);">
+                                <label style="margin:0; font-size:12px; text-transform:none; font-weight:700; color:var(--accent);">📊 Visualización Gráfica M3</label>
                                 <div style="display: flex; gap: 8px; align-items: center;">
                                     <label style="margin:0; font-size:11px; text-transform:none; font-weight:bold; color:var(--text-muted);">Tipo:</label>
-                                    <select onchange="updateChartType(this)" style="padding: 4px 8px; font-size: 11px; width: auto; height: auto; border-radius: 6px; background:#040812; border:1px solid var(--border-color); color:var(--text-main); outline:none; cursor:pointer;">
+                                    <select onchange="updateChartType(this)" style="padding: 4px 8px; font-size: 11px; width: auto; height: auto; border-radius: 6px; background:var(--card-bg); border:1px solid var(--border-color); color:var(--text-main); outline:none; cursor:pointer;">
                                         <option value="line">Línea (Line)</option>
                                         <option value="bar">Barra (Bar)</option>
                                         <option value="pie">Pastel (Pie)</option>
@@ -1836,27 +1879,25 @@ HTML_CHAT = """
                 bubbleHtml += `
                 <div class="query-actions">
                     <button class="action-tab-btn" onclick="toggleViewContainer(this, 'query-panel')">
-                        📝 Ver Query SQL
+                        <span class="material-symbols-rounded">code</span> Ver SQL
                     </button>
                     <button class="action-tab-btn ${userExplicitlyRequestedChart ? '' : 'active'}" onclick="toggleViewContainer(this, 'table-panel')">
-                        📊 Ver Tabla
+                        <span class="material-symbols-rounded">table_chart</span> Ver Tabla
                     </button>
                     ${chartButton}
-                    <button class="action-tab-btn" onclick="exportToCSV(this)" style="color: var(--accent); border-color: rgba(16, 185, 129, 0.25); background: rgba(16, 185, 129, 0.05);">
-                        📥 Exportar a Excel
+                    <button class="action-tab-btn" onclick="exportToCSV(this)" style="color: var(--accent); border-color: var(--border-color);">
+                        <span class="material-symbols-rounded">download</span> Excel
                     </button>
                 </div>
                 
-                <!-- Panel de Código Query -->
                 <div class="query-container query-panel">
                     <div class="query-body">
                         <pre><code>${query}</code></pre>
                     </div>
                 </div>
                 
-                <!-- Panel de la Tabla de Datos -->
                 <div class="query-container table-panel ${userExplicitlyRequestedChart ? '' : 'open'}" style="${userExplicitlyRequestedChart ? '' : 'max-height: 450px; opacity: 1;'}">
-                    <div class="query-body" style="padding:0;background: #030710;">
+                    <div class="query-body" style="padding:0;">
                         ${generateHTMLTable(queryData)}
                     </div>
                 </div>
@@ -1875,7 +1916,7 @@ HTML_CHAT = """
             chatEl.scrollTop = chatEl.scrollHeight;
         }
 
-        // Controlar la visualización mutua de los paneles con animaciones suaves de apertura/cierre
+        // Controlar la visualización mutua de los paneles
         function toggleViewContainer(btnEl, targetClass) {
             const messageWrapper = btnEl.closest('.message');
             const targetPanel = messageWrapper.querySelector(`.${targetClass}`);
@@ -1891,14 +1932,13 @@ HTML_CHAT = """
                 p.style.opacity = '0';
             });
             buttons.forEach(b => {
-                if (!b.innerText.includes("Exportar")) {
+                if (!b.innerText.includes("Excel")) {
                     b.classList.remove('active');
                 }
             });
             
             if (!isTargetOpen) {
                 targetPanel.classList.add('open');
-                // Asignar altura máxima dinámicamente según clase
                 if (targetClass === 'chart-panel') {
                     targetPanel.style.maxHeight = '580px';
                 } else {
@@ -1917,7 +1957,6 @@ HTML_CHAT = """
             const message = inputEl.value.trim();
             if (!message) return;
 
-            // Determinar si el usuario pide explícitamente un gráfico
             const lowerMsg = message.toLowerCase();
             userExplicitlyRequestedChart = lowerMsg.includes("grafic") || lowerMsg.includes("gráfico") || lowerMsg.includes("chart") || lowerMsg.includes("plot") || lowerMsg.includes("dibuj") || lowerMsg.includes("barra") || lowerMsg.includes("linea");
 
@@ -1946,7 +1985,6 @@ HTML_CHAT = """
                 });
                 
                 const data = await res.json();
-                
                 document.getElementById('temp-loader').remove();
 
                 if (data.error) {
@@ -1954,7 +1992,7 @@ HTML_CHAT = """
                 } else {
                     appendMessage('assistant', data.response, data.query_used, data.query_data);
                     if (data.model_used) {
-                        activeModelBadge.textContent = `⚡ ${data.model_used}`;
+                        activeModelBadge.innerHTML = `<span class="material-symbols-rounded" style="font-size: 14px;">psychology</span> ` + data.model_used;
                     }
                 }
             } catch (err) {
@@ -1968,6 +2006,15 @@ HTML_CHAT = """
             if (e.key === 'Enter' && !e.shiftKey) {
                 e.preventDefault();
                 handleSend();
+            }
+        });
+
+        // Cargar el tema al inicializar
+        document.addEventListener("DOMContentLoaded", () => {
+            const savedTheme = localStorage.getItem("m3-theme");
+            if (savedTheme === "light") {
+                document.body.classList.add("light-theme");
+                document.getElementById("theme-icon").innerText = "dark_mode";
             }
         });
     </script>
