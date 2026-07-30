@@ -841,11 +841,14 @@ HTML_CHAT = """
             width: 100%;
             height: 100vh;
             z-index: 2;
+            position: relative;
+            overflow: hidden;
         }
         
-        /* 1. Sidebar Retráctil Estilo Manager SQL */
+        /* 1. Sidebar Retráctil con Animación GPU-accelerated */
         .sidebar {
             width: 320px;
+            min-width: 320px;
             background: var(--sidebar-bg);
             border-right: 1px solid var(--border-color);
             backdrop-filter: blur(24px);
@@ -854,15 +857,71 @@ HTML_CHAT = """
             box-sizing: border-box;
             flex-shrink: 0;
             box-shadow: 5px 0 25px rgba(0, 0, 0, 0.4);
-            z-index: 11;
+            z-index: 30;
             height: 100%;
-            transition: width 0.3s cubic-bezier(0.4, 0, 0.2, 1), margin-left 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+            transform: translateX(0);
+            transition: transform 0.4s cubic-bezier(0.22, 1, 0.36, 1);
+            will-change: transform;
+            position: relative;
         }
         .sidebar.collapsed {
-            width: 0px;
+            transform: translateX(-100%);
+            box-shadow: none;
+        }
+        /* El área de chat se ajusta dinámicamente al sidebar con transición suave */
+        .main-chat-area {
+            transition: margin-left 0.4s cubic-bezier(0.22, 1, 0.36, 1);
+        }
+        .sidebar.collapsed + .main-chat-area {
             margin-left: -320px;
-            overflow: hidden;
-            border-right: none;
+        }
+        
+        /* Icono Hamburguesa Animado → X */
+        .sidebar-toggle-btn {
+            width: 38px;
+            height: 38px;
+            position: relative;
+            cursor: pointer;
+            border-radius: 12px;
+            background: rgba(30, 144, 255, 0.1);
+            border: 1px solid rgba(30, 144, 255, 0.3);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+            flex-shrink: 0;
+        }
+        .sidebar-toggle-btn:hover {
+            background: rgba(30, 144, 255, 0.25);
+            transform: translateY(-1px);
+        }
+        .hamburger-icon {
+            width: 18px;
+            height: 14px;
+            position: relative;
+            display: flex;
+            flex-direction: column;
+            justify-content: space-between;
+        }
+        .hamburger-icon span {
+            display: block;
+            height: 2px;
+            width: 100%;
+            background: #00bfff;
+            border-radius: 2px;
+            transition: all 0.35s cubic-bezier(0.68, -0.55, 0.27, 1.55);
+            transform-origin: center;
+        }
+        /* Estado abierto → las 3 líneas se transforman en una X */
+        .sidebar-toggle-btn.is-active .hamburger-icon span:nth-child(1) {
+            transform: translateY(6px) rotate(45deg);
+        }
+        .sidebar-toggle-btn.is-active .hamburger-icon span:nth-child(2) {
+            opacity: 0;
+            transform: scaleX(0);
+        }
+        .sidebar-toggle-btn.is-active .hamburger-icon span:nth-child(3) {
+            transform: translateY(-6px) rotate(-45deg);
         }
         .sidebar-header {
             padding: 20px 18px;
@@ -1448,13 +1507,13 @@ HTML_CHAT = """
         <main class="main-chat-area">
             <header>
                 <div style="display: flex; align-items: center; gap: 16px;">
-                    <!-- Botón Retráctil del Menú Izquierdo -->
-                    <button onclick="toggleSidebar()" class="header-btn btn-modify" style="width: 38px; height: 38px;" title="Mostrar/Ocultar SQL Manager">
-                        <svg viewBox="0 0 24 24" style="width: 18px; height: 18px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round;">
-                            <line x1="3" y1="12" x2="21" y2="12"></line>
-                            <line x1="3" y1="6" x2="21" y2="6"></line>
-                            <line x1="3" y1="18" x2="21" y2="18"></line>
-                        </svg>
+                    <!-- Botón Retráctil del Menú Izquierdo con Animación Hamburger → X -->
+                    <button onclick="toggleSidebar()" class="sidebar-toggle-btn" id="sidebar-toggle" title="Mostrar/Ocultar SQL Manager">
+                        <div class="hamburger-icon">
+                            <span></span>
+                            <span></span>
+                            <span></span>
+                        </div>
                     </button>
                     <h1>MCP Relational AI</h1>
                     <div class="badges-wrapper">
@@ -1513,9 +1572,12 @@ HTML_CHAT = """
 
         let userExplicitlyRequestedChart = false;
 
-        // Toggle del Menú Izquierdo Retráctil
+        // Toggle del Menú Izquierdo Retráctil con Animación de Icono
         function toggleSidebar() {
-            document.querySelector('.sidebar').classList.toggle('collapsed');
+            const sidebar = document.querySelector('.sidebar');
+            const toggleBtn = document.getElementById('sidebar-toggle');
+            sidebar.classList.toggle('collapsed');
+            toggleBtn.classList.toggle('is-active');
         }
 
         // Control del Panel del Árbol SQL con transiciones de CSS
