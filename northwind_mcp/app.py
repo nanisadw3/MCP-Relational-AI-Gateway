@@ -948,13 +948,13 @@ HTML_CHAT = """
             margin-left: -320px;
         }
         
-        /* Botón Toggle con Icono de Base de Datos integrado directamente al sidebar */
+        /* Botón Toggle con Icono de Base de Datos */
         .sidebar-toggle-btn {
             width: 48px;
             height: 48px;
             position: absolute;
             top: 14px;
-            right: -60px; /* Queda flotando fuera del sidebar para poder abrirlo cuando se colapsa */
+            right: 16px; /* Integrado dentro del sidebar por defecto */
             cursor: pointer;
             border-radius: 16px;
             background: var(--card-bg);
@@ -962,14 +962,18 @@ HTML_CHAT = """
             display: flex;
             align-items: center;
             justify-content: center;
-            transition: all 0.35s cubic-bezier(0.4, 0, 0.2, 1);
+            transition: all 0.4s cubic-bezier(0.22, 1, 0.36, 1);
             box-shadow: 0 4px 15px rgba(0,0,0,0.15);
             z-index: 35;
+        }
+        /* Solo si el panel está colapsado, el botón se posiciona por fuera */
+        .sidebar.collapsed .sidebar-toggle-btn {
+            right: -60px;
+            box-shadow: 0 6px 20px rgba(0,0,0,0.25);
         }
         .sidebar-toggle-btn:hover {
             background: var(--surface-variant);
             transform: translateY(-1px);
-            box-shadow: 0 6px 20px rgba(0,0,0,0.25);
         }
         .sidebar-toggle-btn .db-toggle-icon {
             font-size: 24px;
@@ -1181,6 +1185,12 @@ HTML_CHAT = """
             background: linear-gradient(135deg, var(--primary), var(--accent));
             -webkit-background-clip: text;
             -webkit-text-fill-color: transparent;
+            margin-left: 20px;
+            transition: margin-left 0.4s cubic-bezier(0.22, 1, 0.36, 1);
+        }
+        /* Se recorre el título para dejar espacio al botón cuando el sidebar se cierra */
+        .sidebar.collapsed + .main-chat-area header h1 {
+            margin-left: 64px;
         }
         .badges-wrapper {
             display: flex;
@@ -1546,7 +1556,7 @@ HTML_CHAT = """
         <main class="main-chat-area">
             <header>
                 <div style="display: flex; align-items: center; gap: 16px;">
-                    <h1 style="margin-left: 20px;">MCP Relational AI</h1>
+                    <h1>MCP Relational AI</h1>
                     <div class="badges-wrapper">
                         <div class="db-badge">
                             <span class="material-symbols-rounded" style="font-size: 14px;">database</span> {{ db_type.upper() }} ({{ db_name }})
