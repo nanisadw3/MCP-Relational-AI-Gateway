@@ -5,7 +5,7 @@ echo "🚀 Iniciando importación de base de datos Northwind..."
 
 # Copiar el script SQL al contenedor
 echo "📦 Copiando script SQL al contenedor sql_northwind..."
-docker cp Northwind/instnwnd.sql sql_northwind:/tmp/instnwnd.sql
+docker cp database_setup/instnwnd.sql sql_northwind:/tmp/instnwnd.sql
 
 if [ $? -ne 0 ]; then
     echo "❌ Error: Asegúrate de que el contenedor 'sql_northwind' esté corriendo (ejecuta primero 'docker compose up -d')."

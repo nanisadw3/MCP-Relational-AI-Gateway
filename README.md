@@ -90,8 +90,8 @@ Todas las librerías externas se cargan desde CDN públicos sin necesidad de ins
 
 *   `docker-compose.yml`: Archivo de orquestación para iniciar SQL Server 2022.
 *   `import_db.sh`: Script automatizado para restaurar la base de datos Northwind.
-*   `Northwind/`: Contiene el script SQL de restauración de Northwind y configuraciones iniciales.
-*   `northwind_mcp/`: Código fuente del panel Flask y del frontend interactivo (chat, árbol SQL, gráficos).
+*   `database_setup/`: Contiene el script SQL de restauración de Northwind y configuraciones iniciales.
+*   `gateway_app/`: Código fuente del panel Flask y del frontend interactivo (chat, árbol SQL, gráficos).
 *   `.gitignore`: Filtros para evitar subir archivos temporales, configuraciones de IDEs o entornos virtuales.
 
 ---
@@ -115,7 +115,7 @@ docker compose up -d
 Ingresa al directorio de la aplicación web y arranca el entorno de Python:
 
 ```bash
-cd northwind_mcp
+cd gateway_app
 
 # 1. Crear entorno virtual
 python -m venv venv

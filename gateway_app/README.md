@@ -42,10 +42,10 @@ El protocolo MCP permite estructurar la comunicación entre una Inteligencia Art
 
 ## 📁 Descripción de los Archivos del Proyecto
 
-* **[server.py](file:///Users/inakisobera/Documents/MCP/northwind_mcp/server.py)**: Implementa el servidor MCP utilizando el framework de alto nivel `fastmcp`. Define cómo conectarse a SQL Server en Docker, expone el esquema relacional en formato JSON y permite la ejecución segura de sentencias `SELECT`.
-* **[agent.py](file:///Users/inakisobera/Documents/MCP/northwind_mcp/agent.py)**: El cliente interactivo de consola. Mantiene un chat infinito (con soporte para salir limpiamente con `Ctrl+C`), maneja el historial acumulativo de mensajes para que la IA tenga memoria, y muestra en **color gris** cada llamada HTTP a Google o petición local de MCP para desmitificar las tripas del protocolo.
-* **[test_conn.py](file:///Users/inakisobera/Documents/MCP/northwind_mcp/test_conn.py)**: Script auxiliar para validar la conexión directa de Python hacia la base de datos de Docker sin pasar por el protocolo MCP.
-* **[venv/](file:///Users/inakisobera/Documents/MCP/northwind_mcp/venv/)**: Entorno virtual que aísla y contiene las librerías necesarias (`fastmcp`, `mcp`, `pymssql`, `httpx` y `termcolor`).
+* **[server.py](server.py)**: Implementa el servidor MCP utilizando el framework de alto nivel `fastmcp`. Define cómo conectarse a SQL Server en Docker, expone el esquema relacional en formato JSON y permite la ejecución segura de sentencias `SELECT`.
+* **[agent.py](agent.py)**: El cliente interactivo de consola. Mantiene un chat infinito (con soporte para salir limpiamente con `Ctrl+C`), maneja el historial acumulativo de mensajes para que la IA tenga memoria, y muestra en **color gris** cada llamada HTTP o petición local de MCP para desmitificar las tripas del protocolo.
+* **[test_conn.py](test_conn.py)**: Script auxiliar para validar la conexión directa de Python hacia la base de datos de Docker sin pasar por el protocolo MCP.
+* **[venv/](venv/)**: Entorno virtual que aísla y contiene las librerías necesarias.
 
 ---
 
@@ -60,7 +60,7 @@ docker ps
 ### 2. Ejecutar el Agente
 Navega a la carpeta del proyecto, activa el entorno virtual y ejecuta el agente interactivo:
 ```bash
-cd /Users/inakisobera/Documents/MCP/northwind_mcp
+cd gateway_app
 source venv/bin/activate
 python3 agent.py
 ```
