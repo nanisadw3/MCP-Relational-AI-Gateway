@@ -1287,13 +1287,13 @@ HTML_CHAT = """
             box-shadow: 0 4px 15px rgba(0, 0, 0, 0.05);
         }
         .message.user .bubble {
-            background: linear-gradient(135deg, var(--primary), var(--surface-variant));
-            color: var(--text-main);
+            background: var(--primary);
+            color: var(--bg-color);
             border-bottom-right-radius: 4px;
         }
         body.light-theme .message.user .bubble {
-            color: #fff;
-            background: linear-gradient(135deg, var(--primary), #4b3d73);
+            color: #ffffff;
+            background: var(--primary);
         }
         .message.assistant .bubble {
             background: var(--card-bg);
