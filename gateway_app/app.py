@@ -806,6 +806,10 @@ HTML_LOGIN = """
             box-sizing: border-box;
             transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
         }
+        select option {
+            background-color: var(--bg-color);
+            color: var(--text-main);
+        }
         input:focus, select:focus {
             outline: none;
             border-color: var(--primary);
