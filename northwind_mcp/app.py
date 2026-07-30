@@ -843,7 +843,7 @@ HTML_CHAT = """
             z-index: 2;
         }
         
-        /* 1. Sidebar Estilo Manager SQL */
+        /* 1. Sidebar Retráctil Estilo Manager SQL */
         .sidebar {
             width: 320px;
             background: var(--sidebar-bg);
@@ -856,6 +856,13 @@ HTML_CHAT = """
             box-shadow: 5px 0 25px rgba(0, 0, 0, 0.4);
             z-index: 11;
             height: 100%;
+            transition: width 0.3s cubic-bezier(0.4, 0, 0.2, 1), margin-left 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+        .sidebar.collapsed {
+            width: 0px;
+            margin-left: -320px;
+            overflow: hidden;
+            border-right: none;
         }
         .sidebar-header {
             padding: 20px 18px;
@@ -1235,7 +1242,7 @@ HTML_CHAT = """
             transition: max-height 0.4s cubic-bezier(0.16, 1, 0.3, 1), opacity 0.35s ease, margin-top 0.4s ease;
         }
         .query-container.open {
-            max-height: 450px;
+            max-height: 550px; /* Incrementado para gráficos grandes */
             opacity: 1;
             margin-top: 10px;
         }
@@ -1415,7 +1422,6 @@ HTML_CHAT = """
                                 </svg>
                                 <strong>{{ table }}</strong>
                             </div>
-                            <!-- Botón de Consulta Rápida -->
                             <button class="preview-btn" onclick="previewTable(event, '{{ table }}')" title="Consultar 5 filas rápidas">Preview</button>
                         </div>
                         <!-- Lista de Columnas Plegables -->
@@ -1435,25 +1441,6 @@ HTML_CHAT = """
                     </div>
                     {% endfor %}
                 </div>
-
-                <!-- Bitácora de Queries Históricos -->
-                <div class="sidebar-header" style="border-top: 1px solid var(--border-color);">
-                    <h3>📜 Historial Queries</h3>
-                </div>
-                <div class="db-tree-container" id="query-log-container" style="max-height: 200px; overflow-y:auto; padding: 12px 14px; display:flex; flex-direction:column; gap:8px;">
-                    <p style="font-size:11px; color:var(--text-muted); margin:0;" id="empty-log-msg">No se han ejecutado queries aún.</p>
-                </div>
-
-                <!-- Consola Manual Sandbox SQL -->
-                <div class="sidebar-header" style="border-top: 1px solid var(--border-color);">
-                    <h3>💻 Consola SQL Sandbox</h3>
-                </div>
-                <div style="padding: 16px 14px; display: flex; flex-direction: column; gap: 10px;">
-                    <textarea id="sandbox-sql-input" placeholder="SELECT TOP 5 * FROM Categories..." style="width:100%; height:90px; font-family:monospace; font-size:12px; background:rgba(0,0,0,0.3); border:1px solid var(--border-color); border-radius:10px; color:#00ffcc; resize:none; padding:10px; box-sizing:border-box; outline:none;"></textarea>
-                    <button class="action-tab-btn" onclick="executeSandboxSQL()" style="width:100%; justify-content:center; background:linear-gradient(135deg, var(--primary), #4b0082); color:white; border:none; box-shadow:0 4px 10px rgba(30, 144, 255, 0.25);">
-                        Ejecutar Query Manual
-                    </button>
-                </div>
             </div>
         </aside>
 
@@ -1461,6 +1448,14 @@ HTML_CHAT = """
         <main class="main-chat-area">
             <header>
                 <div style="display: flex; align-items: center; gap: 16px;">
+                    <!-- Botón Retráctil del Menú Izquierdo -->
+                    <button onclick="toggleSidebar()" class="header-btn btn-modify" style="width: 38px; height: 38px;" title="Mostrar/Ocultar SQL Manager">
+                        <svg viewBox="0 0 24 24" style="width: 18px; height: 18px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round;">
+                            <line x1="3" y1="12" x2="21" y2="12"></line>
+                            <line x1="3" y1="6" x2="21" y2="6"></line>
+                            <line x1="3" y1="18" x2="21" y2="18"></line>
+                        </svg>
+                    </button>
                     <h1>MCP Relational AI</h1>
                     <div class="badges-wrapper">
                         <div class="db-badge">
@@ -1516,6 +1511,13 @@ HTML_CHAT = """
         const sendBtn = document.getElementById('send-button');
         const activeModelBadge = document.getElementById('active-model-badge');
 
+        let userExplicitlyRequestedChart = false;
+
+        // Toggle del Menú Izquierdo Retráctil
+        function toggleSidebar() {
+            document.querySelector('.sidebar').classList.toggle('collapsed');
+        }
+
         // Control del Panel del Árbol SQL con transiciones de CSS
         function toggleTableNode(nodeEl) {
             const list = nodeEl.nextElementSibling;
@@ -1562,110 +1564,6 @@ HTML_CHAT = """
             inputEl.selectionStart = inputEl.selectionEnd = start + insertText.length;
         }
 
-        // Bitácora SQL del Panel Lateral
-        function addQueryToLog(sql) {
-            const emptyMsg = document.getElementById('empty-log-msg');
-            if (emptyMsg) emptyMsg.remove();
-            
-            const container = document.getElementById('query-log-container');
-            const queryDiv = document.createElement('div');
-            queryDiv.className = 'column-node';
-            queryDiv.style.justifyContent = 'space-between';
-            queryDiv.style.background = 'rgba(255,255,255,0.02)';
-            queryDiv.style.padding = '8px';
-            queryDiv.style.borderRadius = '6px';
-            queryDiv.style.border = '1px solid var(--border-color)';
-            queryDiv.style.flexDirection = 'column';
-            queryDiv.style.alignItems = 'stretch';
-            queryDiv.style.gap = '4px';
-            queryDiv.style.cursor = 'default';
-            
-            const code = document.createElement('pre');
-            code.style.margin = '0';
-            code.style.fontSize = '9.5px';
-            code.style.overflowX = 'auto';
-            code.style.color = '#00ffcc';
-            code.textContent = sql.length > 50 ? sql.substring(0, 47) + '...' : sql;
-            code.title = sql;
-            
-            const actions = document.createElement('div');
-            actions.style.display = 'flex';
-            actions.style.gap = '6px';
-            actions.style.marginTop = '4px';
-            
-            const copyBtn = document.createElement('button');
-            copyBtn.className = 'attr-preview-btn';
-            copyBtn.style.opacity = '1';
-            copyBtn.textContent = 'Copiar';
-            copyBtn.onclick = () => {
-                navigator.clipboard.writeText(sql);
-                alert("Consulta SQL copiada al portapapeles.");
-            };
-            
-            const useBtn = document.createElement('button');
-            useBtn.className = 'attr-preview-btn';
-            useBtn.style.opacity = '1';
-            useBtn.textContent = 'Consola';
-            useBtn.onclick = () => {
-                document.getElementById('sandbox-sql-input').value = sql;
-                document.getElementById('sandbox-sql-input').focus();
-            };
-            
-            actions.appendChild(copyBtn);
-            actions.appendChild(useBtn);
-            queryDiv.appendChild(code);
-            queryDiv.appendChild(actions);
-            container.appendChild(queryDiv);
-            container.scrollTop = container.scrollHeight;
-        }
-
-        // Ejecutar Query Manual en la Consola Sandbox
-        async function executeSandboxSQL() {
-            const sql = document.getElementById('sandbox-sql-input').value.trim();
-            if (!sql) return;
-            
-            // Agregar al chat como llamada manual del usuario
-            appendMessage('user', `💻 <strong>[Ejecución Consola SQL]</strong>:<br><pre style="margin:0;color:#00ffcc;font-size:12px;"><code>${sql}</code></pre>`);
-            
-            // Mostrar loader de espera
-            const loaderDiv = document.createElement('div');
-            loaderDiv.className = 'message assistant';
-            loaderDiv.id = 'temp-loader';
-            loaderDiv.innerHTML = `
-                <div class="bubble">
-                    <div class="typing-loader">
-                        <div class="dot"></div>
-                        <div class="dot"></div>
-                        <div class="dot"></div>
-                    </div>
-                </div>`;
-            chatEl.appendChild(loaderDiv);
-            chatEl.scrollTop = chatEl.scrollHeight;
-
-            try {
-                const res = await fetch('/execute_raw_sql', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ sql: sql })
-                });
-                
-                const data = await res.json();
-                document.getElementById('temp-loader').remove();
-
-                if (data.error) {
-                    appendMessage('assistant', `⚠️ Ocurrió un error al ejecutar SQL:<br><span style="color:#f87171;">${data.error}</span>`);
-                } else if (data.status === "error") {
-                    appendMessage('assistant', `⚠️ Error del motor de Base de Datos:<br><span style="color:#f87171;">${data.message}</span>`);
-                } else {
-                    appendMessage('assistant', `Consulta manual ejecutada con éxito. Filas afectadas/retornadas: <strong>${data.data.length}</strong>.`, sql, data.data);
-                    addQueryToLog(sql);
-                }
-            } catch (err) {
-                document.getElementById('temp-loader').remove();
-                appendMessage('assistant', '⚠️ Error de comunicación con el servidor.');
-            }
-        }
-
         // Exportar tabla a Excel / CSV con soporte para UTF-8 BOM
         function exportToCSV(btnEl) {
             const messageWrapper = btnEl.closest('.message');
@@ -1705,7 +1603,7 @@ HTML_CHAT = """
             document.body.removeChild(link);
         }
 
-        // Detectar variables y crear/actualizar Gráficos dinámicamente
+        // Detectar variables y crear/actualizar Gráficos dinámicamente con estética ultra profesional
         function initChartForPanel(panelEl, queryData) {
             if (!queryData || queryData.length === 0) return;
             
@@ -1731,32 +1629,53 @@ HTML_CHAT = """
             
             const ctx = canvas.getContext('2d');
             
+            // Crear gradiente azul translúcido profesional para el relleno de línea
+            const gradient = ctx.createLinearGradient(0, 0, 0, 300);
+            gradient.addColorStop(0, 'rgba(0, 191, 255, 0.4)');
+            gradient.addColorStop(0.5, 'rgba(0, 191, 255, 0.15)');
+            gradient.addColorStop(1, 'rgba(0, 191, 255, 0.0)');
+            
             if (canvas.chartInstance) {
                 canvas.chartInstance.destroy();
             }
             
             canvas.chartInstance = new Chart(ctx, {
-                type: 'bar',
+                type: 'line', // Línea por defecto
                 data: {
                     labels: labels,
                     datasets: [{
                         label: valueKey,
                         data: dataPoints,
-                        backgroundColor: 'rgba(30, 144, 255, 0.4)',
                         borderColor: '#00bfff',
-                        borderWidth: 2,
-                        borderRadius: 6
+                        backgroundColor: gradient,
+                        borderWidth: 3,
+                        fill: true,
+                        tension: 0.35, // Suavizado bezier
+                        pointBackgroundColor: '#00ffcc',
+                        pointBorderColor: '#040812',
+                        pointBorderWidth: 2,
+                        pointRadius: 5,
+                        pointHoverRadius: 8
                     }]
                 },
                 options: {
                     responsive: true,
                     maintainAspectRatio: false,
                     plugins: {
-                        legend: { display: true, labels: { color: '#8fa0b5' } }
+                        legend: {
+                            display: true,
+                            labels: { color: '#f0f4f8', font: { family: 'Plus Jakarta Sans', weight: '600' } }
+                        }
                     },
                     scales: {
-                        x: { grid: { color: 'rgba(255,255,255,0.05)' }, ticks: { color: '#8fa0b5' } },
-                        y: { grid: { color: 'rgba(255,255,255,0.05)' }, ticks: { color: '#8fa0b5' } }
+                        x: {
+                            grid: { color: 'rgba(255,255,255,0.03)' },
+                            ticks: { color: '#8fa0b5', font: { family: 'Plus Jakarta Sans' } }
+                        },
+                        y: {
+                            grid: { color: 'rgba(255,255,255,0.03)' },
+                            ticks: { color: '#8fa0b5', font: { family: 'Plus Jakarta Sans' } }
+                        }
                     }
                 }
             });
@@ -1818,17 +1737,48 @@ HTML_CHAT = """
             let bubbleHtml = `<div class="bubble">${parsedText}</div>`;
             
             if (query) {
+                let chartButton = '';
+                let chartPanelHtml = '';
+                
+                // Mostrar gráficos únicamente si el usuario lo solicitó de forma explícita
+                if (userExplicitlyRequestedChart) {
+                    chartButton = `
+                    <button class="action-tab-btn active" onclick="toggleViewContainer(this, 'chart-panel')">
+                        📈 Ver Gráfico
+                    </button>`;
+                    
+                    chartPanelHtml = `
+                    <!-- Panel de Gráfico Profesional Abierto por Defecto en Tamaño Grande -->
+                    <div class="query-container chart-panel open" style="max-height: 580px; opacity: 1; margin-top: 10px;">
+                        <div class="query-body" style="background:#030710; padding:0; position:relative; min-height: 380px;">
+                            <div style="padding: 10px 16px; display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid var(--border-color); background: rgba(30,144,255,0.08);">
+                                <label style="margin:0; font-size:12px; text-transform:none; font-weight:700; color:#00bfff;">📊 Visualización Gráfica Profesional</label>
+                                <div style="display: flex; gap: 8px; align-items: center;">
+                                    <label style="margin:0; font-size:11px; text-transform:none; font-weight:bold; color:var(--text-muted);">Tipo:</label>
+                                    <select onchange="updateChartType(this)" style="padding: 4px 8px; font-size: 11px; width: auto; height: auto; border-radius: 6px; background:#040812; border:1px solid var(--border-color); color:var(--text-main); outline:none; cursor:pointer;">
+                                        <option value="line">Línea (Line)</option>
+                                        <option value="bar">Barra (Bar)</option>
+                                        <option value="pie">Pastel (Pie)</option>
+                                        <option value="doughnut">Dona (Doughnut)</option>
+                                    </select>
+                                </div>
+                            </div>
+                            <div style="height: 320px; position:relative; width:100%; padding: 16px; box-sizing: border-box;">
+                                <canvas class="my-db-chart"></canvas>
+                            </div>
+                        </div>
+                    </div>`;
+                }
+
                 bubbleHtml += `
                 <div class="query-actions">
                     <button class="action-tab-btn" onclick="toggleViewContainer(this, 'query-panel')">
                         📝 Ver Query SQL
                     </button>
-                    <button class="action-tab-btn" onclick="toggleViewContainer(this, 'table-panel')">
+                    <button class="action-tab-btn ${userExplicitlyRequestedChart ? '' : 'active'}" onclick="toggleViewContainer(this, 'table-panel')">
                         📊 Ver Tabla
                     </button>
-                    <button class="action-tab-btn" onclick="toggleViewContainer(this, 'chart-panel')">
-                        📈 Ver Gráfico
-                    </button>
+                    ${chartButton}
                     <button class="action-tab-btn" onclick="exportToCSV(this)" style="color: #00ffcc; border-color: rgba(0, 255, 204, 0.25); background: rgba(0, 255, 204, 0.05);">
                         📥 Exportar a Excel
                     </button>
@@ -1842,38 +1792,21 @@ HTML_CHAT = """
                 </div>
                 
                 <!-- Panel de la Tabla de Datos -->
-                <div class="query-container table-panel">
+                <div class="query-container table-panel ${userExplicitlyRequestedChart ? '' : 'open'}" style="${userExplicitlyRequestedChart ? '' : 'max-height: 450px; opacity: 1;'}">
                     <div class="query-body" style="padding:0;background: #030710;">
                         ${generateHTMLTable(queryData)}
                     </div>
                 </div>
                 
-                <!-- Panel de Gráfico de Barras/Líneas -->
-                <div class="query-container chart-panel">
-                    <div class="query-body" style="background:#030710; padding:0; position:relative; min-height: 250px;">
-                        <div style="padding: 6px 12px; display: flex; gap: 8px; align-items: center; border-bottom: 1px solid var(--border-color); background: rgba(30,144,255,0.05);">
-                            <label style="margin:0; font-size:11px; text-transform:none; font-weight:bold; color:var(--text-muted);">Tipo de Gráfico:</label>
-                            <select onchange="updateChartType(this)" style="padding: 4px 8px; font-size: 11px; width: auto; height: auto; border-radius: 6px; background:#040812; border:1px solid var(--border-color); color:var(--text-main); outline:none; cursor:pointer;">
-                                <option value="bar">Barra (Bar)</option>
-                                <option value="line">Línea (Line)</option>
-                                <option value="pie">Pastel (Pie)</option>
-                                <option value="doughnut">Dona (Doughnut)</option>
-                            </select>
-                        </div>
-                        <div style="height: 200px; position:relative; width:100%;">
-                            <canvas class="my-db-chart"></canvas>
-                        </div>
-                    </div>
-                </div>`;
+                ${chartPanelHtml}`;
             }
             
             msgDiv.innerHTML = bubbleHtml;
             chatEl.appendChild(msgDiv);
             
-            if (query && queryData) {
+            if (query && queryData && userExplicitlyRequestedChart) {
                 const chartPanel = msgDiv.querySelector('.chart-panel');
                 initChartForPanel(chartPanel, queryData);
-                addQueryToLog(query);
             }
             
             chatEl.scrollTop = chatEl.scrollHeight;
@@ -1889,7 +1822,11 @@ HTML_CHAT = """
             
             const isTargetOpen = targetPanel.classList.contains('open');
             
-            panels.forEach(p => p.classList.remove('open'));
+            panels.forEach(p => {
+                p.classList.remove('open');
+                p.style.maxHeight = '0';
+                p.style.opacity = '0';
+            });
             buttons.forEach(b => {
                 if (!b.innerText.includes("Exportar")) {
                     b.classList.remove('active');
@@ -1898,6 +1835,13 @@ HTML_CHAT = """
             
             if (!isTargetOpen) {
                 targetPanel.classList.add('open');
+                // Asignar altura máxima dinámicamente según clase
+                if (targetClass === 'chart-panel') {
+                    targetPanel.style.maxHeight = '580px';
+                } else {
+                    targetPanel.style.maxHeight = '450px';
+                }
+                targetPanel.style.opacity = '1';
                 btnEl.classList.add('active');
             }
             
@@ -1909,6 +1853,10 @@ HTML_CHAT = """
         async function handleSend() {
             const message = inputEl.value.trim();
             if (!message) return;
+
+            // Determinar si el usuario pide explícitamente un gráfico
+            const lowerMsg = message.toLowerCase();
+            userExplicitlyRequestedChart = lowerMsg.includes("grafic") || lowerMsg.includes("gráfico") || lowerMsg.includes("chart") || lowerMsg.includes("plot") || lowerMsg.includes("dibuj") || lowerMsg.includes("barra") || lowerMsg.includes("linea");
 
             inputEl.value = '';
             appendMessage('user', message);
