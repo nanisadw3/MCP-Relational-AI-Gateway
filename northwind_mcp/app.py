@@ -217,6 +217,58 @@ def execute_raw_sql_route():
     res = execute_sql(session["db_config"], sql)
     return jsonify(res)
 
+@app.route("/fetch_databases", methods=["POST"])
+def fetch_databases():
+    data = request.json
+    db_type = data.get("db_type")
+    host = data.get("host")
+    port = data.get("port")
+    user = data.get("user")
+    password = data.get("password")
+    
+    # Conectar a una base de datos por defecto para listar las demás
+    default_db = "master" if db_type == "mssql" else "postgres"
+    
+    temp_config = {
+        "db_type": db_type,
+        "host": host,
+        "port": port,
+        "user": user,
+        "password": password,
+        "database": default_db
+    }
+    
+    try:
+        conn = get_db_connection(temp_config)
+        cursor = conn.cursor()
+        
+        if db_type == "mssql":
+            query = "SELECT name FROM sys.databases WHERE name NOT IN ('master', 'tempdb', 'model', 'msdb', 'Resource') ORDER BY name"
+        elif db_type == "postgresql":
+            query = "SELECT datname FROM pg_database WHERE datistemplate = false AND datname NOT IN ('postgres') ORDER BY datname"
+            
+        cursor.execute(query)
+        rows = cursor.fetchall()
+        conn.close()
+        
+        db_names = []
+        for row in rows:
+            if isinstance(row, dict):
+                val = list(row.values())[0]
+            elif isinstance(row, (list, tuple)):
+                val = row[0]
+            else:
+                val = row
+            db_names.append(val)
+            
+        db_names.append(default_db)
+        # Quitar duplicados preservando orden
+        db_names = list(dict.fromkeys(db_names))
+        
+        return jsonify({"status": "success", "databases": db_names})
+    except Exception as e:
+        return jsonify({"status": "error", "message": str(e)})
+
 @app.route("/send_message", methods=["POST"])
 async def send_message():
     if "db_config" not in session or "api_key" not in session:
@@ -587,6 +639,63 @@ HTML_LOGIN = """
                 portInput.value = "5432";
             }
         }
+
+        // Carga dinámicamente las bases de datos desde las credenciales actuales
+        async function loadDatabases() {
+            const btn = document.getElementById("btn-load-dbs");
+            const dbSelect = document.getElementById("database");
+            const dbType = document.getElementById("db_type").value;
+            const host = document.getElementsByName("host")[0].value;
+            const port = document.getElementById("port").value;
+            const user = document.getElementsByName("user")[0].value;
+            const password = document.getElementsByName("password")[0].value;
+            
+            if (!host || !port || !user || !password) {
+                alert("Por favor rellena primero el Host, Puerto, Usuario y Contraseña.");
+                return;
+            }
+            
+            const originalText = btn.innerText;
+            btn.innerText = "⏳ ...";
+            btn.disabled = true;
+            
+            try {
+                const res = await fetch("/fetch_databases", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({
+                        db_type: dbType,
+                        host: host,
+                        port: port,
+                        user: user,
+                        password: password
+                    })
+                });
+                
+                const data = await res.json();
+                
+                if (data.status === "success") {
+                    dbSelect.innerHTML = "";
+                    data.databases.forEach(db => {
+                        const opt = document.createElement("option");
+                        opt.value = db;
+                        opt.innerText = db;
+                        // Pre-seleccionar 'Northwind' si se encuentra disponible
+                        if (db.toLowerCase() === "northwind") {
+                            opt.selected = true;
+                        }
+                        dbSelect.appendChild(opt);
+                    });
+                } else {
+                    alert("Error al conectar: " + data.message);
+                }
+            } catch (err) {
+                alert("Error de comunicación con el servidor al buscar las bases de datos.");
+            } finally {
+                btn.innerText = originalText;
+                btn.disabled = false;
+            }
+        }
     </script>
 </head>
 <body>
@@ -648,7 +757,18 @@ HTML_LOGIN = """
                 </div>
                 <div class="form-group">
                     <label>Nombre de la Base de Datos</label>
-                    <input type="text" name="database" placeholder="ej. Northwind" value="{{ form_data.database or '' }}" required>
+                    <div style="display: flex; gap: 10px; align-items: center;">
+                        <select name="database" id="database" style="flex: 1;" required>
+                            {% if form_data.database %}
+                                <option value="{{ form_data.database }}" selected>{{ form_data.database }}</option>
+                            {% else %}
+                                <option value="" disabled selected>Introduce credenciales y pulsa Cargar ➔</option>
+                            {% endif %}
+                        </select>
+                        <button type="button" onclick="loadDatabases()" id="btn-load-dbs" style="padding: 14px 18px; background: rgba(30, 144, 255, 0.15); border: 1px solid var(--border-color); border-radius: 14px; color: #00bfff; cursor: pointer; font-size: 13px; font-weight: bold; transition: all 0.2s;">
+                            🔄 Cargar
+                        </button>
+                    </div>
                 </div>
                 <button type="submit" class="btn">Conectar y Analizar</button>
             </form>
@@ -1597,7 +1717,6 @@ HTML_CHAT = """
             let labelKey = keys[0];
             let valueKey = keys[1] || keys[0];
             
-            // Buscar una columna que sea string/date como label, y numérica como value
             for (const key of keys) {
                 const val = queryData[0][key];
                 if (typeof val === 'string' || val instanceof Date) {
@@ -1607,19 +1726,17 @@ HTML_CHAT = """
                 }
             }
             
-            // Extraer datos
             const labels = queryData.map(row => String(row[labelKey]));
             const dataPoints = queryData.map(row => Number(row[valueKey]) || 0);
             
             const ctx = canvas.getContext('2d');
             
-            // Si ya existe un chart en ese canvas, destruirlo
             if (canvas.chartInstance) {
                 canvas.chartInstance.destroy();
             }
             
             canvas.chartInstance = new Chart(ctx, {
-                type: 'bar', // Tipo por defecto
+                type: 'bar',
                 data: {
                     labels: labels,
                     datasets: [{
@@ -1753,7 +1870,6 @@ HTML_CHAT = """
             msgDiv.innerHTML = bubbleHtml;
             chatEl.appendChild(msgDiv);
             
-            // Inicializar el gráfico en diferido si hay queryData
             if (query && queryData) {
                 const chartPanel = msgDiv.querySelector('.chart-panel');
                 initChartForPanel(chartPanel, queryData);
@@ -1773,7 +1889,6 @@ HTML_CHAT = """
             
             const isTargetOpen = targetPanel.classList.contains('open');
             
-            // Cerrar todos los paneles y remover la clase activa de los botones
             panels.forEach(p => p.classList.remove('open'));
             buttons.forEach(b => {
                 if (!b.innerText.includes("Exportar")) {
@@ -1781,13 +1896,11 @@ HTML_CHAT = """
                 }
             });
             
-            // Si el que se clickeó estaba cerrado, lo abrimos
             if (!isTargetOpen) {
                 targetPanel.classList.add('open');
                 btnEl.classList.add('active');
             }
             
-            // Esperar que transcurra la animación y desplazar scroll
             setTimeout(() => {
                 chatEl.scrollTop = chatEl.scrollHeight;
             }, 350);
