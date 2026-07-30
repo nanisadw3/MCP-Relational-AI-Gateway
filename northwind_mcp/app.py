@@ -193,6 +193,7 @@ def chat():
         HTML_CHAT, 
         db_name=session["db_config"]["database"], 
         db_type=session["db_config"]["db_type"], 
+        db_user=session["db_config"]["user"],
         model_name=display_model,
         schema_dict=session.get("db_schema_dict", {})
     )
@@ -1514,11 +1515,14 @@ HTML_CHAT = """
                 <span class="material-symbols-rounded db-toggle-icon">database</span>
             </button>
             
-            <!-- Cabecera de la Estructura SQL del Panel Izquierdo -->
-            <div style="padding: 22px 20px 14px 20px; display: flex; align-items: center; justify-content: space-between; border-bottom: 1px solid var(--border-color); background: rgba(0,0,0,0.05);">
+            <!-- Cabecera del Panel Izquierdo con Usuario de Conexión -->
+            <div style="padding: 20px 20px 18px 20px; display: flex; align-items: center; justify-content: space-between; border-bottom: 1px solid var(--border-color); background: rgba(0,0,0,0.05); padding-right: 76px; min-height: 48px; box-sizing: border-box;">
                 <div style="display: flex; align-items: center; gap: 8px; color: var(--primary);">
-                    <span class="material-symbols-rounded" style="font-size: 20px;">account_tree</span>
-                    <span style="font-size: 11px; font-weight: 800; letter-spacing: 1.5px; text-transform: uppercase;">Estructura SQL</span>
+                    <span class="material-symbols-rounded" style="font-size: 24px; color: var(--primary);">account_circle</span>
+                    <div style="display: flex; flex-direction: column; gap: 2px;">
+                        <span style="font-size: 9px; font-weight: 700; text-transform: uppercase; color: var(--text-muted); letter-spacing: 0.5px; line-height: 1;">Usuario SQL</span>
+                        <span style="font-size: 14px; font-weight: 800; color: var(--accent); letter-spacing: 0.2px; line-height: 1.2;">{{ db_user }}</span>
+                    </div>
                 </div>
             </div>
             
