@@ -999,7 +999,7 @@ HTML_CHAT = """
             overflow-y: auto;
             display: flex;
             flex-direction: column;
-            padding-top: 76px; /* Espacio para que el botón flotante arriba no cubra los nodos */
+            padding-top: 10px;
         }
         
         /* Scrollbars Premium Ultradelgados */
@@ -1252,7 +1252,7 @@ HTML_CHAT = """
         .chat-container {
             flex: 1;
             overflow-y: auto;
-            padding: 32px 32px 100px 32px;
+            padding: 32px 32px 140px 32px; /* Mayor separación inferior para evitar superposiciones con la caja de entrada */
             display: flex;
             flex-direction: column;
             gap: 24px;
@@ -1513,6 +1513,14 @@ HTML_CHAT = """
             <button onclick="toggleSidebar()" class="sidebar-toggle-btn is-open" id="sidebar-toggle" title="Mostrar/Ocultar SQL Manager">
                 <span class="material-symbols-rounded db-toggle-icon">database</span>
             </button>
+            
+            <!-- Cabecera de la Estructura SQL del Panel Izquierdo -->
+            <div style="padding: 22px 20px 14px 20px; display: flex; align-items: center; justify-content: space-between; border-bottom: 1px solid var(--border-color); background: rgba(0,0,0,0.05);">
+                <div style="display: flex; align-items: center; gap: 8px; color: var(--primary);">
+                    <span class="material-symbols-rounded" style="font-size: 20px;">account_tree</span>
+                    <span style="font-size: 11px; font-weight: 800; letter-spacing: 1.5px; text-transform: uppercase;">Estructura SQL</span>
+                </div>
+            </div>
             
             <div class="sidebar-scroll-panel">
                 <div class="db-tree-container">
