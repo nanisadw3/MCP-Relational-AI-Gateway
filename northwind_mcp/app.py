@@ -10,13 +10,21 @@ from termcolor import colored
 app = Flask(__name__)
 app.secret_key = "clave_secreta_super_segura_para_el_mcp"
 
-# Lista de modelos en orden de prioridad para la selección automática
-AUTOMATIC_MODELS = [
-    "gemini-3.1-flash-lite",
-    "gemini-2.0-flash-lite",
-    "gemini-2.0-flash",
-    "gemini-3.5-flash"
-]
+# Listas de modelos predeterminados por proveedor
+PROVIDERS_CONFIG = {
+    "google": {
+        "name": "Google Gemini",
+        "models": ["gemini-3.1-flash-lite", "gemini-2.0-flash-lite", "gemini-2.0-flash", "gemini-3.5-flash"]
+    },
+    "anthropic": {
+        "name": "Anthropic Claude",
+        "models": ["claude-3-5-haiku-latest", "claude-3-5-sonnet-latest", "claude-3-opus-latest"]
+    },
+    "openai": {
+        "name": "OpenAI GPT",
+        "models": ["gpt-4o-mini", "gpt-4o"]
+    }
+}
 
 # Serializador personalizado para tipos de datos de bases de datos
 def db_serialize(val):
@@ -126,13 +134,222 @@ def execute_sql(config, sql):
             conn.close()
         return {"status": "error", "message": str(e)}
 
+# --- Funciones de Adaptación para Proveedores de IA ---
+
+async def call_google(client, model, api_key, system_prompt, history, tools):
+    url = f"https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent?key={api_key}"
+    gemini_tools = [{"functionDeclarations": [t for t in tools]}] if tools else []
+    
+    # Gemini espera formato: role "user" / "model" / "function"
+    gemini_history = []
+    for h in history:
+        if h["role"] in ["user", "model", "function"]:
+            gemini_history.append(h)
+            
+    payload = {
+        "contents": gemini_history,
+        "tools": gemini_tools,
+        "systemInstruction": {"parts": [{"text": system_prompt}]}
+    }
+    
+    response = await client.post(url, json=payload, timeout=45.0)
+    if response.status_code != 200:
+        raise httpx.HTTPStatusError(f"Google API Error {response.status_code}: {response.text}", request=response.request, response=response)
+        
+    res_data = response.json()
+    candidate = res_data.get("candidates", [{}])[0]
+    content = candidate.get("content", {})
+    parts = content.get("parts", [])
+    
+    text_content = ""
+    function_call = None
+    for p in parts:
+        if "text" in p:
+            text_content += p["text"]
+        if "functionCall" in p:
+            fc = p["functionCall"]
+            function_call = {"name": fc["name"], "args": fc["args"]}
+            
+    return text_content, function_call, content
+
+async def call_openai(client, model, api_key, system_prompt, history, tools):
+    url = "https://api.openai.com/v1/chat/completions"
+    headers = {
+        "Authorization": f"Bearer {api_key}",
+        "Content-Type": "application/json"
+    }
+    
+    openai_tools = []
+    if tools:
+        for t in tools:
+            openai_tools.append({
+                "type": "function",
+                "function": {
+                    "name": t["name"],
+                    "description": t["description"],
+                    "parameters": t["parameters"]
+                }
+            })
+            
+    # Formatear mensajes
+    messages = [{"role": "system", "content": system_prompt}]
+    for msg in history:
+        if msg["role"] == "user":
+            messages.append({"role": "user", "content": msg["parts"][0]["text"]})
+        elif msg["role"] == "model":
+            content_text = ""
+            tool_calls = []
+            for p in msg["parts"]:
+                if "text" in p:
+                    content_text = p["text"]
+                if "functionCall" in p:
+                    fc = p["functionCall"]
+                    tool_calls.append({
+                        "id": "call_" + fc["name"],
+                        "type": "function",
+                        "function": {
+                            "name": fc["name"],
+                            "arguments": json.dumps(fc["args"])
+                        }
+                    })
+            msg_obj = {"role": "assistant"}
+            if content_text:
+                msg_obj["content"] = content_text
+            if tool_calls:
+                msg_obj["tool_calls"] = tool_calls
+            messages.append(msg_obj)
+        elif msg["role"] == "function":
+            resp = msg["parts"][0]["functionResponse"]
+            messages.append({
+                "role": "tool",
+                "tool_call_id": "call_" + resp["name"],
+                "content": resp["response"]["result"]
+            })
+            
+    payload = {
+        "model": model,
+        "messages": messages,
+    }
+    if openai_tools:
+        payload["tools"] = openai_tools
+        
+    response = await client.post(url, headers=headers, json=payload, timeout=45.0)
+    if response.status_code != 200:
+        raise httpx.HTTPStatusError(f"OpenAI API Error {response.status_code}: {response.text}", request=response.request, response=response)
+        
+    res_data = response.json()
+    choice_msg = res_data["choices"][0]["message"]
+    text_content = choice_msg.get("content") or ""
+    
+    function_call = None
+    if choice_msg.get("tool_calls"):
+        tc = choice_msg["tool_calls"][0]
+        function_call = {
+            "name": tc["function"]["name"],
+            "args": json.loads(tc["function"]["arguments"])
+        }
+        
+    # Reconstruir estructura interna compatible para la sesión
+    raw_history_obj = {"role": "model", "parts": []}
+    if text_content:
+        raw_history_obj["parts"].append({"text": text_content})
+    if function_call:
+        raw_history_obj["parts"].append({"functionCall": {"name": function_call["name"], "args": function_call["args"]}})
+        
+    return text_content, function_call, raw_history_obj
+
+async def call_anthropic(client, model, api_key, system_prompt, history, tools):
+    url = "https://api.anthropic.com/v1/messages"
+    headers = {
+        "x-api-key": api_key,
+        "anthropic-version": "2023-06-01",
+        "content-type": "application/json"
+    }
+    
+    anthropic_tools = []
+    if tools:
+        for t in tools:
+            anthropic_tools.append({
+                "name": t["name"],
+                "description": t["description"],
+                "input_schema": t["parameters"]
+            })
+            
+    messages = []
+    for msg in history:
+        if msg["role"] == "user":
+            messages.append({"role": "user", "content": msg["parts"][0]["text"]})
+        elif msg["role"] == "model":
+            content_blocks = []
+            for p in msg["parts"]:
+                if "text" in p:
+                    content_blocks.append({"type": "text", "text": p["text"]})
+                if "functionCall" in p:
+                    fc = p["functionCall"]
+                    content_blocks.append({
+                        "type": "tool_use",
+                        "id": "call_" + fc["name"],
+                        "name": fc["name"],
+                        "input": fc["args"]
+                    })
+            messages.append({"role": "assistant", "content": content_blocks})
+        elif msg["role"] == "function":
+            resp = msg["parts"][0]["functionResponse"]
+            messages.append({
+                "role": "user",
+                "content": [
+                    {
+                        "type": "tool_result",
+                        "tool_use_id": "call_" + resp["name"],
+                        "content": resp["response"]["result"]
+                    }
+                ]
+            })
+            
+    payload = {
+        "model": model,
+        "system": system_prompt,
+        "messages": messages,
+        "max_tokens": 4000
+    }
+    if anthropic_tools:
+        payload["tools"] = anthropic_tools
+        
+    response = await client.post(url, headers=headers, json=payload, timeout=45.0)
+    if response.status_code != 200:
+        raise httpx.HTTPStatusError(f"Anthropic API Error {response.status_code}: {response.text}", request=response.request, response=response)
+        
+    res_data = response.json()
+    content_blocks = res_data["content"]
+    
+    text_content = ""
+    function_call = None
+    
+    for block in content_blocks:
+        if block["type"] == "text":
+            text_content += block["text"]
+        elif block["type"] == "tool_use":
+            function_call = {
+                "name": block["name"],
+                "args": block["input"]
+            }
+            
+    raw_history_obj = {"role": "model", "parts": []}
+    if text_content:
+        raw_history_obj["parts"].append({"text": text_content})
+    if function_call:
+        raw_history_obj["parts"].append({"functionCall": {"name": function_call["name"], "args": function_call["args"]}})
+        
+    return text_content, function_call, raw_history_obj
+
 # --- Rutas de Flask ---
 
 @app.route("/", methods=["GET", "POST"])
 def index():
     saved_data = session.get("db_config", {})
+    saved_provider = session.get("ai_provider", "google")
     saved_api = session.get("api_key", "")
-    saved_model = session.get("gemini_model", "auto")
+    saved_model = session.get("ai_model", "auto")
     
     form_initial = {
         "db_type": saved_data.get("db_type", "mssql"),
@@ -141,8 +358,9 @@ def index():
         "user": saved_data.get("user", ""),
         "password": saved_data.get("password", ""),
         "database": saved_data.get("database", ""),
+        "ai_provider": saved_provider,
         "api_key": saved_api,
-        "gemini_model": saved_model
+        "ai_model": saved_model
     }
 
     if request.method == "POST":
@@ -155,13 +373,14 @@ def index():
             "database": request.form.get("database")
         }
         
+        ai_provider = request.form.get("ai_provider")
         api_key = request.form.get("api_key")
-        gemini_model = request.form.get("gemini_model")
+        ai_model = request.form.get("ai_model")
         
-        form_submitted = {**config, "api_key": api_key, "gemini_model": gemini_model}
+        form_submitted = {**config, "ai_provider": ai_provider, "api_key": api_key, "ai_model": ai_model}
         
         if not api_key:
-            return render_template_string(HTML_LOGIN, error="La clave API de Google Gemini es obligatoria.", form_data=form_submitted)
+            return render_template_string(HTML_LOGIN, error="La clave API del proveedor de IA es obligatoria.", form_data=form_submitted)
             
         try:
             schema_dict = fetch_schema(config)
@@ -174,8 +393,9 @@ def index():
             session["db_config"] = config
             session["db_schema"] = schema_text
             session["db_schema_dict"] = schema_dict
+            session["ai_provider"] = ai_provider
             session["api_key"] = api_key
-            session["gemini_model"] = gemini_model
+            session["ai_model"] = ai_model
             session["chat_history"] = []
             return redirect(url_for("chat"))
         except Exception as e:
@@ -188,12 +408,15 @@ def chat():
     if "db_config" not in session:
         return redirect(url_for("index"))
     
-    display_model = "Auto Fallback" if session["gemini_model"] == "auto" else session["gemini_model"]
+    display_model = "Auto Fallback" if session["ai_model"] == "auto" else session["ai_model"]
+    provider_name = PROVIDERS_CONFIG.get(session["ai_provider"], {}).get("name", "IA")
+    
     return render_template_string(
         HTML_CHAT, 
         db_name=session["db_config"]["database"], 
         db_type=session["db_config"]["db_type"], 
         db_user=session["db_config"]["user"],
+        provider_name=provider_name,
         model_name=display_model,
         schema_dict=session.get("db_schema_dict", {})
     )
@@ -266,7 +489,7 @@ def fetch_databases():
 @app.route("/send_message", methods=["POST"])
 async def send_message():
     if "db_config" not in session or "api_key" not in session:
-        return jsonify({"error": "No conectado o falta API Key"}), 401
+        return jsonify({"error": "No conectado o falta configuración de IA"}), 401
         
     user_message = request.json.get("message")
     if not user_message:
@@ -274,8 +497,9 @@ async def send_message():
         
     db_config = session["db_config"]
     schema_text = session["db_schema"]
+    ai_provider = session["ai_provider"]
     api_key = session["api_key"]
-    model_selection = session.get("gemini_model", "auto")
+    model_selection = session.get("ai_model", "auto")
     chat_history = session.get("chat_history", [])
     
     chat_history.append({
@@ -285,22 +509,18 @@ async def send_message():
     
     tools_config = [
         {
-            "functionDeclarations": [
-                {
-                    "name": "query_db",
-                    "description": "Ejecuta una consulta SQL SELECT en la base de datos y devuelve el resultado en JSON.",
-                    "parameters": {
-                        "type": "OBJECT",
-                        "properties": {
-                            "sql": {
-                                "type": "STRING",
-                                "description": "La consulta SQL SELECT válida a ejecutar."
-                            }
-                        },
-                        "required": ["sql"]
+            "name": "query_db",
+            "description": "Ejecuta una consulta SQL SELECT en la base de datos y devuelve el resultado en JSON.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "sql": {
+                        "type": "string",
+                        "description": "La consulta SQL SELECT válida a ejecutar."
                     }
-                }
-            ]
+                },
+                "required": ["sql"]
+            }
         }
     ]
     
@@ -311,29 +531,18 @@ async def send_message():
         "La base de datos es PostgreSQL. Usa sintaxis estándar válida. Por ejemplo, usa 'LIMIT N' para limitar resultados y pon comillas dobles si las tablas tienen mayúsculas o caracteres especiales."
     )
     
-    system_instruction = {
-        "parts": [
-            {
-                "text": (
-                    f"Eres un analista de datos experto. Tienes acceso a una base de datos ejecutándose sobre {engine_name}.\n"
-                    f"Aquí tienes el esquema de la base de datos:\n{schema_text}\n\n"
-                    f"Instrucciones:\n"
-                    f"1. IMPORTANTE: {dialect_rules}\n"
-                    f"2. Explica brevemente tu pensamiento en español (qué tablas necesitas y por qué) y genera la consulta SQL SELECT adecuada.\n"
-                    f"3. Utiliza la herramienta query_db cuando sea necesario para obtener datos reales y responder al usuario.\n"
-                    f"4. Sintetiza una respuesta final clara en español basándote en los datos obtenidos."
-                )
-            }
-        ]
-    }
+    system_instruction = (
+        f"Eres un analista de datos experto. Tienes acceso a una base de datos ejecutándose sobre {engine_name}.\n"
+        f"Aquí tienes el esquema de la base de datos:\n{schema_text}\n\n"
+        f"Instrucciones:\n"
+        f"1. IMPORTANTE: {dialect_rules}\n"
+        f"2. Explica brevemente tu pensamiento en español (qué tablas necesitas y por qué) y genera la consulta SQL SELECT adecuada.\n"
+        f"3. Utiliza la herramienta query_db cuando sea necesario para obtener datos reales y responder al usuario.\n"
+        f"4. Sintetiza una respuesta final clara en español basándote en los datos obtenidos."
+    )
     
-    payload = {
-        "contents": chat_history,
-        "tools": tools_config,
-        "systemInstruction": system_instruction
-    }
-    
-    models_to_try = AUTOMATIC_MODELS if model_selection == "auto" else [model_selection]
+    # Determinar qué modelos intentar (cascada / selección única)
+    models_to_try = PROVIDERS_CONFIG[ai_provider]["models"] if model_selection == "auto" else [model_selection]
     
     response_data = None
     successful_model = None
@@ -341,43 +550,38 @@ async def send_message():
     
     async with httpx.AsyncClient() as client:
         for current_model in models_to_try:
-            gemini_url = f"https://generativelanguage.googleapis.com/v1beta/models/{current_model}:generateContent?key={api_key}"
             try:
-                print(f"[Fallback System] Intentando consulta con el modelo: {current_model}")
-                response = await client.post(gemini_url, json=payload, timeout=45.0)
-                
-                if response.status_code == 200:
-                    response_data = response.json()
-                    successful_model = current_model
-                    print(colored(f"[Fallback System] Éxito con el modelo: {current_model}", "green"))
-                    break
-                else:
-                    err_msg = f"{current_model} falló con status {response.status_code}: {response.text[:150]}"
-                    print(colored(f"[Fallback System] {err_msg}", "yellow"))
-                    error_logs.append(err_msg)
+                print(f"[Fallback System] Intentando con el modelo {current_model} de {ai_provider}")
+                if ai_provider == "google":
+                    text_content, function_call, raw_history_obj = await call_google(
+                        client, current_model, api_key, system_instruction, chat_history, tools_config
+                    )
+                elif ai_provider == "openai":
+                    text_content, function_call, raw_history_obj = await call_openai(
+                        client, current_model, api_key, system_instruction, chat_history, tools_config
+                    )
+                elif ai_provider == "anthropic":
+                    text_content, function_call, raw_history_obj = await call_anthropic(
+                        client, current_model, api_key, system_instruction, chat_history, tools_config
+                    )
+                    
+                response_data = (text_content, function_call, raw_history_obj)
+                successful_model = current_model
+                print(colored(f"[Fallback System] Éxito con el modelo: {current_model}", "green"))
+                break
             except Exception as e:
-                err_msg = f"{current_model} arrojó excepción: {str(e)}"
-                print(colored(f"[Fallback System] {err_msg}", "red"))
+                err_msg = f"{current_model} falló: {str(e)}"
+                print(colored(f"[Fallback System] {err_msg}", "yellow"))
                 error_logs.append(err_msg)
                 
         if not response_data:
             chat_history.pop()
             return jsonify({
-                "error": "Todos los modelos gratuitos fallaron o excedieron su cuota.",
+                "error": "Todos los modelos seleccionados fallaron o excedieron su cuota de uso.",
                 "detalles": error_logs
             }), 500
             
-        candidate = response_data.get("candidates", [{}])[0]
-        content = candidate.get("content", {})
-        parts = content.get("parts", [])
-        
-        reasoning = ""
-        function_call = None
-        for part in parts:
-            if "text" in part:
-                reasoning += part["text"]
-            if "functionCall" in part:
-                function_call = part["functionCall"]
+        text_content, function_call, raw_history_obj = response_data
         
         query_used = None
         raw_db_results = None
@@ -404,7 +608,7 @@ async def send_message():
             else:
                 db_result_str = f"Error al ejecutar SQL: {db_res['message']}"
             
-            chat_history.append(content)
+            chat_history.append(raw_history_obj)
             chat_history.append({
                 "role": "function",
                 "parts": [
@@ -419,35 +623,35 @@ async def send_message():
                 ]
             })
             
-            final_payload = {
-                "contents": chat_history,
-                "tools": tools_config,
-                "systemInstruction": system_instruction
-            }
-            
-            final_gemini_url = f"https://generativelanguage.googleapis.com/v1beta/models/{successful_model}:generateContent?key={api_key}"
-            
+            # Segunda llamada para sintetizar respuesta final
             try:
-                final_response = await client.post(final_gemini_url, json=final_payload, timeout=45.0)
-                if final_response.status_code != 200:
-                    return jsonify({"error": f"Error en la síntesis final ({successful_model}): {final_response.text}"}), 500
+                if ai_provider == "google":
+                    final_text, _, final_history_obj = await call_google(
+                        client, successful_model, api_key, system_instruction, chat_history, None
+                    )
+                elif ai_provider == "openai":
+                    final_text, _, final_history_obj = await call_openai(
+                        client, successful_model, api_key, system_instruction, chat_history, None
+                    )
+                elif ai_provider == "anthropic":
+                    final_text, _, final_history_obj = await call_anthropic(
+                        client, successful_model, api_key, system_instruction, chat_history, None
+                    )
                     
-                final_data = final_response.json()
-                final_content = final_data.get("candidates", [{}])[0].get("content", {})
-                response_text = final_content.get("parts", [{}])[0].get("text", "")
-                chat_history.append(final_content)
+                response_text = final_text
+                chat_history.append(final_history_obj)
             except Exception as e:
                 return jsonify({"error": f"Error en la síntesis final: {str(e)}"}), 500
         else:
-            response_text = reasoning
-            chat_history.append(content)
+            response_text = text_content
+            chat_history.append(raw_history_obj)
             
     session["chat_history"] = chat_history
     return jsonify({
         "response": response_text,
         "query_used": query_used,
         "query_data": raw_db_results,
-        "reasoning": reasoning if function_call else None,
+        "reasoning": text_content if function_call else None,
         "model_used": successful_model
     })
 
@@ -689,6 +893,44 @@ HTML_LOGIN = """
             }
         }
 
+        function handleAiProviderChange() {
+            const provider = document.getElementById("ai_provider").value;
+            const modelSelect = document.getElementById("ai_model");
+            const keyLabel = document.getElementById("api_key_label");
+            const keyInput = document.getElementById("api_key");
+            
+            modelSelect.innerHTML = "";
+            
+            const addOption = (val, text) => {
+                const opt = document.createElement("option");
+                opt.value = val;
+                opt.innerText = text;
+                modelSelect.appendChild(opt);
+            };
+
+            addOption("auto", "🚀 Selección Automática (Resiliente)");
+
+            if (provider === "google") {
+                keyLabel.innerText = "API Key de Google Gemini";
+                keyInput.placeholder = "Pega tu API Key de Google AI Studio";
+                addOption("gemini-3.1-flash-lite", "Gemini 3.1 Flash Lite (Más cuota)");
+                addOption("gemini-2.0-flash-lite", "Gemini 2.0 Flash Lite");
+                addOption("gemini-2.0-flash", "Gemini 2.0 Flash");
+                addOption("gemini-3.5-flash", "Gemini 3.5 Flash");
+            } else if (provider === "anthropic") {
+                keyLabel.innerText = "API Key de Anthropic Claude";
+                keyInput.placeholder = "Pega tu API Key de Anthropic";
+                addOption("claude-3-5-haiku-latest", "Claude 3.5 Haiku");
+                addOption("claude-3-5-sonnet-latest", "Claude 3.5 Sonnet");
+                addOption("claude-3-opus-latest", "Claude 3 Opus");
+            } else if (provider === "openai") {
+                keyLabel.innerText = "API Key de OpenAI GPT";
+                keyInput.placeholder = "Pega tu API Key de OpenAI";
+                addOption("gpt-4o-mini", "GPT-4o mini");
+                addOption("gpt-4o", "GPT-4o");
+            }
+        }
+
         async function loadDatabases() {
             const btn = document.getElementById("btn-load-dbs");
             const dbSelect = document.getElementById("database");
@@ -764,6 +1006,15 @@ HTML_LOGIN = """
                 document.body.classList.add("light-theme");
                 document.getElementById("theme-icon").innerText = "dark_mode";
             }
+            // Inicializar modelos
+            handleAiProviderChange();
+            
+            // Si hay un modelo guardado previamente, seleccionarlo
+            const savedModel = "{{ form_data.ai_model }}";
+            if (savedModel) {
+                const modelSelect = document.getElementById("ai_model");
+                modelSelect.value = savedModel;
+            }
         });
     </script>
 </head>
@@ -774,7 +1025,7 @@ HTML_LOGIN = """
     <div class="container">
         <div class="card">
             <h2>MCP Database Gateway</h2>
-            <div class="subtitle">Conectividad inteligente impulsada por Gemini</div>
+            <div class="subtitle">Conectividad inteligente e IA multi-proveedor</div>
             
             {% if error %}
             <div class="error">
@@ -783,19 +1034,23 @@ HTML_LOGIN = """
             {% endif %}
             
             <form method="POST">
-                <div class="section-title"><span class="material-symbols-rounded">psychology</span> 1. Configuración de IA (Google Gemini)</div>
+                <div class="section-title"><span class="material-symbols-rounded">psychology</span> 1. Configuración de IA</div>
                 <div class="form-group">
-                    <label>API Key de Gemini</label>
-                    <input type="password" name="api_key" placeholder="Pega tu API Key de Google AI Studio" value="{{ form_data.api_key or '' }}" required>
+                    <label>Proveedor de Inteligencia Artificial</label>
+                    <select name="ai_provider" id="ai_provider" onchange="handleAiProviderChange()">
+                        <option value="google" {% if form_data.ai_provider == 'google' %}selected{% endif %}>Google Gemini</option>
+                        <option value="anthropic" {% if form_data.ai_provider == 'anthropic' %}selected{% endif %}>Anthropic Claude</option>
+                        <option value="openai" {% if form_data.ai_provider == 'openai' %}selected{% endif %}>OpenAI GPT</option>
+                    </select>
                 </div>
                 <div class="form-group">
-                    <label>Modelo (Plan Gratuito / Experimental)</label>
-                    <select name="gemini_model">
-                        <option value="auto" {% if form_data.gemini_model == 'auto' or not form_data.gemini_model %}selected{% endif %}>🚀 Selección Automática (Resiliente)</option>
-                        <option value="gemini-3.1-flash-lite" {% if form_data.gemini_model == 'gemini-3.1-flash-lite' %}selected{% endif %}>Gemini 3.1 Flash Lite (Más cuota)</option>
-                        <option value="gemini-2.0-flash-lite" {% if form_data.gemini_model == 'gemini-2.0-flash-lite' %}selected{% endif %}>Gemini 2.0 Flash Lite</option>
-                        <option value="gemini-2.0-flash" {% if form_data.gemini_model == 'gemini-2.0-flash' %}selected{% endif %}>Gemini 2.0 Flash</option>
-                        <option value="gemini-3.5-flash" {% if form_data.gemini_model == 'gemini-3.5-flash' %}selected{% endif %}>Gemini 3.5 Flash</option>
+                    <label id="api_key_label">API Key</label>
+                    <input type="password" name="api_key" id="api_key" placeholder="API Key" value="{{ form_data.api_key or '' }}" required>
+                </div>
+                <div class="form-group">
+                    <label>Modelo de Lenguaje</label>
+                    <select name="ai_model" id="ai_model">
+                        <option value="auto">🚀 Selección Automática (Resiliente)</option>
                     </select>
                 </div>
 
@@ -861,7 +1116,6 @@ HTML_CHAT = """
     <title>MCP Chat - {{ db_name }}</title>
     <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700&display=swap" rel="stylesheet">
     <link href="https://fonts.googleapis.com/icon?family=Material+Symbols+Rounded" rel="stylesheet">
-    <!-- Cargar marked.js y Chart.js para visualizaciones y MD -->
     <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/hammerjs@2.0.8"></script>
@@ -1576,7 +1830,7 @@ HTML_CHAT = """
                             <span class="material-symbols-rounded" style="font-size: 14px;">database</span> {{ db_type.upper() }} ({{ db_name }})
                         </div>
                         <div class="model-badge" id="active-model-badge">
-                            <span class="material-symbols-rounded" style="font-size: 14px;">psychology</span> {{ model_name }}
+                            <span class="material-symbols-rounded" style="font-size: 14px;">psychology</span> {{ provider_name }} ({{ model_name }})
                         </div>
                     </div>
                 </div>
@@ -1755,7 +2009,6 @@ HTML_CHAT = """
             
             const ctx = canvas.getContext('2d');
             
-            // Colores adaptados del tema activo
             const isLightTheme = document.body.classList.contains("light-theme");
             const strokeColor = isLightTheme ? '#6750A4' : '#D0BCFF';
             const accentColor = isLightTheme ? '#386a20' : '#b8f397';
@@ -1835,7 +2088,6 @@ HTML_CHAT = """
                 }
             });
             
-            // Doble clic para resetear zoom con animación suave
             canvas.addEventListener('dblclick', () => {
                 if (canvas.chartInstance) {
                     canvas.chartInstance.resetZoom('default');
@@ -2050,7 +2302,7 @@ HTML_CHAT = """
                 } else {
                     appendMessage('assistant', data.response, data.query_used, data.query_data);
                     if (data.model_used) {
-                        activeModelBadge.innerHTML = `<span class="material-symbols-rounded" style="font-size: 14px;">psychology</span> ` + data.model_used;
+                        activeModelBadge.innerHTML = `<span class="material-symbols-rounded" style="font-size: 14px;">psychology</span> {{ provider_name }} (` + data.model_used + `)`;
                     }
                 }
             } catch (err) {
