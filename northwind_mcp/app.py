@@ -864,6 +864,8 @@ HTML_CHAT = """
     <!-- Cargar marked.js y Chart.js para visualizaciones y MD -->
     <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/hammerjs@2.0.8"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-zoom@2.0.1/dist/chartjs-plugin-zoom.min.js"></script>
     <style>
         :root {
             /* M3 Dark Theme */
@@ -1791,10 +1793,33 @@ HTML_CHAT = """
                 options: {
                     responsive: true,
                     maintainAspectRatio: false,
+                    animation: {
+                        duration: 400,
+                        easing: 'easeOutCubic'
+                    },
+                    transitions: {
+                        zoom: {
+                            animation: {
+                                duration: 500,
+                                easing: 'easeOutCubic'
+                            }
+                        }
+                    },
                     plugins: {
                         legend: {
                             display: true,
                             labels: { color: textColor, font: { family: 'Plus Jakarta Sans', weight: '600' } }
+                        },
+                        zoom: {
+                            zoom: {
+                                drag: {
+                                    enabled: true,
+                                    backgroundColor: isLightTheme ? 'rgba(103, 80, 164, 0.12)' : 'rgba(208, 188, 255, 0.12)',
+                                    borderColor: isLightTheme ? 'rgba(103, 80, 164, 0.5)' : 'rgba(208, 188, 255, 0.5)',
+                                    borderWidth: 1
+                                },
+                                mode: 'xy'
+                            }
                         }
                     },
                     scales: {
@@ -1807,6 +1832,13 @@ HTML_CHAT = """
                             ticks: { color: textColor, font: { family: 'Plus Jakarta Sans' } }
                         }
                     }
+                }
+            });
+            
+            // Doble clic para resetear zoom con animación suave
+            canvas.addEventListener('dblclick', () => {
+                if (canvas.chartInstance) {
+                    canvas.chartInstance.resetZoom('default');
                 }
             });
         }
@@ -1893,6 +1925,10 @@ HTML_CHAT = """
                             </div>
                             <div style="height: 320px; position:relative; width:100%; padding: 16px; box-sizing: border-box;">
                                 <canvas class="my-db-chart"></canvas>
+                            </div>
+                            <div style="padding: 6px 16px 10px; display: flex; align-items: center; gap: 6px; color: var(--text-muted); font-size: 10px; border-top: 1px solid var(--border-color);">
+                                <span class="material-symbols-rounded" style="font-size: 14px;">zoom_in</span>
+                                Arrastra una región para hacer zoom · Doble clic para regresar
                             </div>
                         </div>
                     </div>`;
